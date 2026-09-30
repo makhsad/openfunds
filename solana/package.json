@@ -1,0 +1,21 @@
+{
+  "name": "@openfunds/solana",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --types node config.ts balance.ts check-balance.ts",
+    "balance": "tsx check-balance.ts"
+  },
+  "dependencies": {
+    "@solana/kit": "8.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}
