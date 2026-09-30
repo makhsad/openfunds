@@ -59,6 +59,46 @@ npm run start
 
 При ошибке или отмене состояние не меняется. Обновление страницы, сброс и переключение сценария очищают изменения и отключают demo-кошелёк. Простое отключение/подключение внутри одного сценария сохраняет баланс и голос. Данные не сохраняются в localStorage.
 
+## Project Discussion
+
+Блок расположен ниже основной информации о кампании, перед историей операций. В нём пять стартовых mock-сообщений для каждого контекста: имя или сокращённый demo-адрес, роль, обычный текст, время UTC и тип Message / Project Update. Обновления автора выделены бирюзовой карточкой.
+
+Откройте **Demo controls → Discussion simulation → Discussion role**:
+
+| Роль                 | Доступ                                                        |
+| -------------------- | ------------------------------------------------------------- |
+| Visitor              | Только чтение; «Connect your wallet to join the discussion.»  |
+| Connected non-backer | Только чтение; «Support this project to join the discussion.» |
+| Backer               | Чтение и отправка сообщений                                   |
+| Creator              | Сообщения и отдельный режим Project Update                    |
+
+Роли полностью имитируются и **не зависят от кнопки Connect Wallet**, баланса или взносов. `Allow discussion posting` моделирует внешний `canPost`: при отключении даже creator не может отправлять сообщения или обновления.
+
+Для отправки выберите Backer или Creator, заполните `Your message` и нажмите `Send message`. Creator также может выбрать `Project Update` и нажать `Publish Project Update`. Пробельные сообщения запрещены. Во время ожидания поле и кнопки отправки блокируются, повторное нажатие не создаёт дубликат. После успеха пост добавляется, поле очищается. **Operation outcome → Error / Cancellation** позволяет проверить, что текст сохраняется при неудачной отправке; выберите Success для повторной попытки.
+
+**Discussion context** переключает только демонстрационное обсуждение; суммы и голосование страницы по-прежнему относятся к Community Project. Доступны два mock-проекта и три контекста:
+
+- Community Project · Campaign 1;
+- Neighborhood Garden · Campaign 1 — другое `projectId` при том же `campaignId`;
+- Community Project · Campaign 2 — другой `campaignId` при том же `projectId`.
+
+Посты хранятся в React state отдельно для каждой пары идентификаторов. При переходе в другой контекст черновик очищается; сообщения исходного контекста сохраняются до сброса или перезагрузки. Завершение отправки после переключения добавляет пост только в исходный контекст и не очищает новый черновик. Перезагрузка страницы, Reset demo и переключение Funding / Voting восстанавливают начальные сообщения. localStorage и внешнее хранение не используются.
+
+Компонент `ProjectDiscussion` принимает `projectId`, `campaignId`, `messages`, `currentUserRole`, `canPost`, `isSubmitting`, `onSendMessage(text): Promise<void>` и `onSendUpdate(text): Promise<void>`. Promise должен завершиться успешно только после добавления сообщения родительским слоем; отклонение Promise сохраняет черновик и показывает ошибку. `ProjectDiscussion` дополнительно фильтрует входящие сообщения по обоим ID и пересоздаёт форму при изменении любого из них.
+
+Файлы обсуждения:
+
+- `src/types/discussion.ts` — общий контракт и типы;
+- `src/components/project-discussion.tsx`, `discussion-message.tsx`, `message-composer.tsx`, `role-badge.tsx` — компоненты отображения;
+- `src/components/discussion.css` — адаптивные стили;
+- `src/hooks/use-demo-discussion.ts` — React state сообщений, mock-роли, контексты, асинхронные обработчики и защита от параллельных отправок в один контекст;
+- `src/hooks/use-message-composer.ts` — черновик, ошибка и состояние формы;
+- `src/services/mock-discussion-data.ts`, `mock-discussion.ts` — fixtures и локальная имитация отправки;
+- `src/lib/discussion.ts` — правила доступа, валидация и ключ контекста;
+- `tests/discussion.test.ts`, `tests/e2e/discussion.spec.ts` — права, отправка, HTML как текст, дубликаты, ошибки, изоляция, мобильное отображение и доступность.
+
+Это frontend-демонстрация, а не проверка настоящей личности: правила в mock-обработчике не заменяют будущую серверную авторизацию. Backend, API, Solana и wallet authentication здесь не подключены. Личных сообщений, вложений, реакций, ответов и уведомлений нет.
+
 ## Структура и подключение Solana
 
 ```text

@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { ArrowUpRight, ChevronRight, Heart } from "lucide-react";
 import { useCrowdfunding } from "@/hooks/use-crowdfunding";
+import { useDemoDiscussion } from "@/hooks/use-demo-discussion";
+import { demoDiscussionContexts } from "@/services/mock-discussion-data";
+import { ProjectDiscussion } from "@/components/project-discussion";
 import { Navbar } from "@/components/navbar";
 import { ProjectHero } from "@/components/project-hero";
 import { ProjectStats } from "@/components/project-stats";
@@ -40,6 +43,7 @@ function CampaignExperience({
   } = useCrowdfunding(scenario);
   const [outcome, updateOutcome] = useState<DemoOutcome>("success");
   const [history, setHistory] = useState<HistoryPreview>("normal");
+  const discussion = useDemoDiscussion(outcome);
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -72,6 +76,16 @@ function CampaignExperience({
           outcome={outcome}
           history={history}
           disabled={pending || !data}
+          discussion={{
+            role: discussion.role,
+            contextIndex: discussion.contextIndex,
+            contexts: demoDiscussionContexts,
+            canPost: discussion.canPost,
+            isSubmitting: discussion.hasPending,
+            onRole: discussion.setRole,
+            onContext: discussion.setContextIndex,
+            onCanPost: discussion.setCanPost,
+          }}
           onScenario={onScenario}
           onOutcome={(value) => {
             updateOutcome(value);
@@ -135,6 +149,23 @@ function CampaignExperience({
                 />
               </aside>
             </div>
+            <div className="discussion-preview-label">
+              <strong>{discussion.context.label}</strong>
+              <span>
+                Discussion demo only · Funding and voting above belong to
+                Community Project.
+              </span>
+            </div>
+            <ProjectDiscussion
+              projectId={discussion.context.projectId}
+              campaignId={discussion.context.campaignId}
+              messages={discussion.messages}
+              currentUserRole={discussion.role}
+              canPost={discussion.canPost}
+              isSubmitting={discussion.isSubmitting}
+              onSendMessage={discussion.onSendMessage}
+              onSendUpdate={discussion.onSendUpdate}
+            />
             <TransactionHistory
               transactions={
                 history === "empty" ? [] : data.campaign.transactions

@@ -1,0 +1,324 @@
+.discussion-preview-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 9px 18px;
+  margin: 40px 0 18px;
+  padding: 13px 16px;
+  border: 1px solid #e0eafa;
+  border-radius: 8px;
+  background: #f4f8fd;
+  color: #48617e;
+  font-size: 11px;
+}
+.discussion-preview-label strong {
+  font-size: 12px;
+}
+.discussion-count {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #586b82;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.discussion-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 5px 22px #19365a05;
+}
+.discussion-messages {
+  list-style: none;
+  margin: 0;
+  padding: 10px 24px;
+}
+.discussion-messages li + li {
+  border-top: 1px solid var(--border);
+}
+.discussion-message {
+  display: flex;
+  gap: 14px;
+  padding: 22px 0;
+}
+.discussion-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid #dde7f2;
+  border-radius: 50%;
+  background: #edf4fc;
+  color: #476891;
+  font-size: 10px;
+  font-weight: 650;
+}
+.discussion-message-body {
+  min-width: 0;
+  flex: 1;
+}
+.discussion-message-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.discussion-message-meta > strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.discussion-message-meta time {
+  margin-left: auto;
+  color: #586b82;
+  font-size: 10px;
+}
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #eff3f8;
+  color: #48617e;
+}
+.role-creator {
+  color: #176f60;
+  background: #e0f3ec;
+}
+.role-backer {
+  color: #285eaf;
+  background: #eaf2ff;
+}
+.discussion-message-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: #586b82;
+  font-size: 10px;
+}
+.discussion-message-text {
+  margin: 9px 0 0;
+  color: #405773;
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.discussion-update {
+  margin-block: 14px;
+  padding: 18px;
+  border: 1px solid #d5eae4;
+  border-left: 3px solid #28a58c;
+  border-radius: 9px;
+  background: #f3fbf8;
+}
+.discussion-update .discussion-avatar {
+  border-color: #cbe7dc;
+  background: #e0f3ec;
+  color: #176f60;
+}
+.discussion-update .discussion-message-type {
+  color: #176f60;
+  font-weight: 650;
+}
+.message-composer {
+  padding: 23px 24px;
+  border-top: 1px solid var(--border);
+  background: #fafcfe;
+}
+.composer-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.composer-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+}
+.discussion-readonly {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0;
+  color: #586b82;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.discussion-readonly svg {
+  flex-shrink: 0;
+}
+.message-composer label {
+  display: block;
+  color: #3d5471;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.message-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 116px;
+  padding: 13px;
+  resize: vertical;
+  border: 1px solid #cfdaea;
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.message-composer textarea::placeholder {
+  color: #66788f;
+}
+.message-composer textarea:disabled {
+  background: #f1f5fa;
+}
+.message-composer textarea[aria-invalid="true"] {
+  border-color: #bd3e46;
+}
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+}
+.composer-footer p {
+  margin: 0;
+  font-size: 11px;
+  color: #586b82;
+}
+.composer-footer .button {
+  flex-shrink: 0;
+}
+.composer-success {
+  color: #176f60;
+  font-size: 12px;
+  margin: 12px 0 0;
+}
+.composer-modes {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+.composer-modes button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #d9e3ef;
+  border-radius: 6px;
+  background: white;
+  color: #48617e;
+  font-size: 11px;
+}
+.composer-modes button[aria-pressed="true"] {
+  border-color: #759fdb;
+  background: #edf4ff;
+  color: #285eaf;
+}
+.discussion-empty {
+  padding: 25px;
+  color: #586b82;
+  font-size: 13px;
+}
+.discussion-demo-settings {
+  margin: 16px 0 4px;
+  border: 1px solid #d8e4f3;
+  border-radius: 7px;
+  padding: 12px;
+  min-width: 0;
+}
+.discussion-demo-settings legend {
+  padding-inline: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #48617e;
+}
+.discussion-demo-settings .demo-settings {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.discussion-demo-settings .demo-posting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 39px;
+}
+.demo-posting-toggle input {
+  accent-color: var(--blue);
+  width: 16px;
+  height: 16px;
+}
+.discussion-demo-note {
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #48617e;
+}
+@media (max-width: 560px) {
+  .discussion-preview-label {
+    margin-top: 28px;
+    font-size: 10px;
+    line-height: 1.8;
+  }
+  .discussion-messages {
+    padding: 5px 14px;
+  }
+  .discussion-message {
+    gap: 9px;
+    padding-block: 18px;
+  }
+  .discussion-avatar {
+    width: 27px;
+    height: 27px;
+    font-size: 9px;
+  }
+  .discussion-message-meta {
+    gap: 6px;
+  }
+  .discussion-message-meta time {
+    flex-basis: 100%;
+    margin-left: 0;
+    font-size: 9px;
+  }
+  .discussion-message-meta > strong {
+    font-size: 12px;
+  }
+  .discussion-message-text {
+    font-size: 12px;
+  }
+  .discussion-update {
+    padding: 13px 10px;
+  }
+  .message-composer {
+    padding: 20px 14px;
+  }
+  .message-composer textarea {
+    font-size: 16px;
+  }
+  .composer-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .composer-footer p {
+    font-size: 10px;
+    line-height: 1.7;
+  }
+  .discussion-readonly {
+    font-size: 12px;
+  }
+  .discussion-demo-settings .demo-settings label {
+    max-width: 100%;
+  }
+  .discussion-demo-settings select {
+    max-width: 100%;
+  }
+}
