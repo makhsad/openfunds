@@ -1,0 +1,17 @@
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+openfunds = "ceaCN9GAuLuPrrH65eoDJCh44ZPNWR5UZog6tvVH2DA"
+
+[provider]
+cluster = "localnet"
+wallet = "/tmp/openfunds-unused-wallet.json"
+
+[scripts]
+test = "../node_modules/.bin/tsx --test tests/openfunds.test.ts"
+
+[hooks]
