@@ -14,7 +14,7 @@ import {
 } from '@solana/kit';
 
 // Standalone local harness: no Anchor provider wallet or keypair files are read.
-test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
+test('OpenFunds local multi-campaign contribution flow', { timeout: 120_000 }, async () => {
   const root = resolve(import.meta.dirname, '..');
   const idl = JSON.parse(await readFile(join(root, 'target/idl/openfunds.json'), 'utf8'));
   const program = address(idl.address);
@@ -91,20 +91,25 @@ test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
       await confirm(await rpc.requestAirdrop(signer.address, 2_000_000_000n as never).send());
     }
     const encoder = getAddressEncoder();
-    async function pda(label: string, ...keys: Address[]) {
+    async function pda(label: string, ...keys: (Address | bigint)[]) {
       return (await getProgramDerivedAddress({ programAddress: program,
-        seeds: [Buffer.from(label), ...keys.map(key => encoder.encode(key))] }))[0];
+        seeds: [Buffer.from(label), ...keys.map(key => {
+          if (typeof key !== 'bigint') return encoder.encode(key);
+          const bytes = Buffer.alloc(8);
+          bytes.writeBigUInt64LE(key);
+          return bytes;
+        })] }))[0];
     }
-    const campaign = await pda('campaign', creator.address);
+    const campaign = await pda('campaign', creator.address, 1n);
     const vault = await pda('vault', campaign);
     const contribution = await pda('contribution', campaign, backer.address);
 
-    function instruction(name: string, signer: KeyPairSigner, keys: Address[], amount?: bigint): Instruction<string, readonly (AccountMeta | AccountSignerMeta)[]> {
+    function instruction(name: string, signer: KeyPairSigner, keys: Address[], argument: bigint): Instruction<string, readonly (AccountMeta | AccountSignerMeta)[]> {
       const definition = idl.instructions.find((ix: { name: string }) => ix.name === name);
       assert.ok(definition, `Missing IDL instruction ${name}`);
-      const data = Buffer.alloc(amount === undefined ? 8 : 16);
+      const data = Buffer.alloc(16);
       data.set(definition.discriminator);
-      if (amount !== undefined) data.writeBigUInt64LE(amount, 8);
+      data.writeBigUInt64LE(argument, 8);
       return { programAddress: program, data, accounts: [
         { address: signer.address, role: AccountRole.WRITABLE_SIGNER, signer },
         ...keys.map(key => ({ address: key, role: AccountRole.WRITABLE })),
@@ -178,62 +183,109 @@ test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
       return data;
     }
     const balance = async () => (await rpc.getBalance(vault, { commitment: 'confirmed' }).send()).value;
-    const initialize = instruction('initialize_campaign', creator, [campaign, vault]);
+    const initialize = instruction('initialize_campaign', creator, [campaign, vault], 1n);
     await send(initialize, creator);
-    assert.deepEqual((await account(campaign, 'Campaign', 48)).subarray(8, 40), Buffer.from(encoder.encode(creator.address)));
-    assert.equal((await account(campaign, 'Campaign', 48)).readBigUInt64LE(40), 0n);
+    assert.deepEqual((await account(campaign, 'Campaign', 56)).subarray(8, 40), Buffer.from(encoder.encode(creator.address)));
+    assert.equal((await account(campaign, 'Campaign', 56)).readBigUInt64LE(40), 1n);
+    assert.equal((await account(campaign, 'Campaign', 56)).readBigUInt64LE(48), 0n);
     await account(vault, 'Vault', 8);
-    const initializedCampaign = await account(campaign, 'Campaign', 48);
+    const initializedCampaign = await account(campaign, 'Campaign', 56);
     const initializedVault = await account(vault, 'Vault', 8);
     const initializedBalance = await balance();
     const creatorBalance = (await rpc.getBalance(creator.address, { commitment: 'confirmed' }).send()).value;
     await assert.rejects(send(initialize, creator));
-    assert.deepEqual(await account(campaign, 'Campaign', 48), initializedCampaign);
+    assert.deepEqual(await account(campaign, 'Campaign', 56), initializedCampaign);
     assert.deepEqual(await account(vault, 'Vault', 8), initializedVault);
     assert.equal(await balance(), initializedBalance);
     assert.equal((await rpc.getBalance(creator.address, { commitment: 'confirmed' }).send()).value, creatorBalance);
     console.log('PASS initialize: correct creator, zero total; repeated initialization rejected without state/balance changes');
 
+    async function snapshot(keys: readonly Address[]) {
+      return Promise.all(keys.map(async key =>
+        (await rpc.getAccountInfo(key, { encoding: 'base64', commitment: 'confirmed' }).send()).value));
+    }
+    // Creator A has IDs 1, 2, 3; Creator B independently reuses IDs 1 and 2.
+    const extraCampaigns = [];
+    for (const [owner, id] of [[creator, 2n], [creator, 3n], [other, 1n], [other, 2n]] as const) {
+      const key = await pda('campaign', owner.address, id);
+      const vaultKey = await pda('vault', key);
+      const contributionKey = await pda('contribution', key, backer.address);
+      await send(instruction('initialize_campaign', owner, [key, vaultKey], id), owner);
+      const record = await account(key, 'Campaign', 56);
+      assert.deepEqual(record.subarray(8, 40), Buffer.from(encoder.encode(owner.address)));
+      assert.equal(record.readBigUInt64LE(40), id);
+      assert.equal(record.readBigUInt64LE(48), 0n);
+      await account(vaultKey, 'Vault', 8);
+      extraCampaigns.push({ owner, id, key, vaultKey, contributionKey });
+    }
+    assert.equal(new Set([campaign, ...extraCampaigns.map(item => item.key)]).size, 5);
+    assert.equal(new Set([vault, ...extraCampaigns.map(item => item.vaultKey)]).size, 5);
+    assert.equal(new Set([contribution, ...extraCampaigns.map(item => item.contributionKey)]).size, 5);
+    const extraKeys = extraCampaigns.flatMap(item => [item.key, item.vaultKey, item.contributionKey]);
+    const untouchedExtras = await snapshot(extraKeys);
+    console.log('PASS campaign IDs: Creator A owns 1/2/3, Creator B owns 1/2; all Campaign/Vault PDAs distinct, creator/ID/zero total verified');
+
     for (const expectedTotal of [10_000_000n, 20_000_000n]) {
       const before = await balance();
       await send(instruction('contribute', backer, [campaign, vault, contribution], 10_000_000n), backer);
       assert.equal(await balance() - before, 10_000_000n);
-      assert.equal((await account(campaign, 'Campaign', 48)).readBigUInt64LE(40), expectedTotal);
+      assert.equal((await account(campaign, 'Campaign', 56)).readBigUInt64LE(48), expectedTotal);
       const record = await account(contribution, 'Contribution', 80);
       assert.deepEqual(record.subarray(8, 40), Buffer.from(encoder.encode(campaign)));
       assert.deepEqual(record.subarray(40, 72), Buffer.from(encoder.encode(backer.address)));
       assert.equal(record.readBigUInt64LE(72), expectedTotal);
+      assert.deepEqual(await snapshot(extraKeys), untouchedExtras);
       console.log(`PASS contribution: same PDA ${contribution}, vault delta=10000000, campaign/backer total=${expectedTotal}`);
     }
-    // Valid accounts belonging to another creator/backer exercise seed constraints.
-    const otherCampaign = await pda('campaign', other.address);
-    const otherVault = await pda('vault', otherCampaign);
-    await send(instruction('initialize_campaign', other, [otherCampaign, otherVault]), other);
+    // Fund every other campaign with the same backer and distinct amounts.
+    // A full snapshot proves that each contribution leaves all other campaigns,
+    // vault balances, and contribution records (including absent ones) unchanged.
+    const stateKeys = [campaign, vault, contribution, ...extraKeys];
+    const amounts = [7_000_000n, 3_000_000n, 5_000_000n, 9_000_000n];
+    for (const [index, item] of extraCampaigns.entries()) {
+      const amount = amounts[index];
+      const affected = [item.key, item.vaultKey, item.contributionKey];
+      const untouchedKeys = stateKeys.filter(key => !affected.includes(key));
+      const beforeOthers = await snapshot(untouchedKeys);
+      const beforeVault = (await rpc.getBalance(item.vaultKey, { commitment: 'confirmed' }).send()).value;
+      await send(instruction('contribute', backer, affected, amount), backer);
+      assert.equal((await rpc.getBalance(item.vaultKey, { commitment: 'confirmed' }).send()).value - beforeVault, amount);
+      assert.equal((await account(item.key, 'Campaign', 56)).readBigUInt64LE(48), amount);
+      const record = await account(item.contributionKey, 'Contribution', 80);
+      assert.deepEqual(record.subarray(8, 40), Buffer.from(encoder.encode(item.key)));
+      assert.deepEqual(record.subarray(40, 72), Buffer.from(encoder.encode(backer.address)));
+      assert.equal(record.readBigUInt64LE(72), amount);
+      assert.deepEqual(await snapshot(untouchedKeys), beforeOthers);
+      console.log(`PASS isolated contribution: creator=${item.owner === creator ? 'A' : 'B'}, campaign_id=${item.id}, amount=${amount}; other campaigns unchanged`);
+    }
+    // A second backer's valid record retains the original wrong-backer coverage.
     const otherContribution = await pda('contribution', campaign, other.address);
     await send(instruction('contribute', other, [campaign, vault, otherContribution], 1n), other);
-    // Snapshot every account touched by valid and substituted instructions.
-    const stateKeys = [campaign, vault, contribution, otherCampaign, otherVault, otherContribution];
-    async function snapshot() {
-      return Promise.all(stateKeys.map(async key =>
-        (await rpc.getAccountInfo(key, { encoding: 'base64', commitment: 'confirmed' }).send()).value));
-    }
-    const beforeState = await snapshot();
+    stateKeys.push(otherContribution);
+    const campaign2 = extraCampaigns[0];
+    const otherCampaign = extraCampaigns[2].key;
+    const otherVault = extraCampaigns[2].vaultKey;
+    const beforeState = await snapshot(stateKeys);
     const cases = [
       ['zero contribution', [campaign, vault, contribution], 0n, /ZeroContribution|6000|0x1770/],
       ['substituted Campaign PDA', [otherCampaign, vault, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
       ['substituted Vault PDA', [campaign, otherVault, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
       ['substituted Contribution PDA', [campaign, vault, otherContribution], 1n, /ConstraintSeeds|2006|0x7d6/],
+      ['same-creator substituted Campaign PDA', [campaign2.key, vault, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
+      ['same-creator substituted Vault PDA', [campaign, campaign2.vaultKey, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
+      ['cross-campaign Contribution PDA', [campaign, vault, campaign2.contributionKey], 1n, /ConstraintSeeds|2006|0x7d6/],
+      ['u64 contribution overflow', [campaign, vault, contribution], (1n << 64n) - 1n, /Overflow|6002|0x1772/],
     ] as const;
     for (const [label, keys, amount, error] of cases) {
       const beforeBacker = (await rpc.getBalance(backer.address, { commitment: 'confirmed' }).send()).value;
       await assert.rejects(send(instruction('contribute', backer, [...keys], amount), backer),
         (failure: unknown) => error.test(String(failure instanceof Error ? failure.cause ?? failure : failure)));
-      assert.deepEqual(await snapshot(), beforeState);
+      assert.deepEqual(await snapshot(stateKeys), beforeState);
       assert.equal((await rpc.getBalance(backer.address, { commitment: 'confirmed' }).send()).value, beforeBacker);
       // Also submit the invalid transaction: prove rollback on the validator,
       // beyond preflight simulation. A landed failure still pays its network fee.
       const metadata = await failedTransaction(instruction('contribute', backer, [...keys], amount), backer, error);
-      assert.deepEqual(await snapshot(), beforeState);
+      assert.deepEqual(await snapshot(stateKeys), beforeState);
       assert.equal((await rpc.getBalance(backer.address, { commitment: 'confirmed' }).send()).value, beforeBacker - metadata.fee);
       console.log(`PASS ${label}: preflight + confirmed on-chain rejection; all PDA balances/data unchanged; only fee=${metadata.fee}`);
     }
@@ -241,8 +293,20 @@ test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
     const beforeRepeatCreator = (await rpc.getBalance(creator.address, { commitment: 'confirmed' }).send()).value;
     const repeatMetadata = await failedTransaction(initialize, creator, /Custom.*0/);
     assert.equal((await rpc.getBalance(creator.address, { commitment: 'confirmed' }).send()).value, beforeRepeatCreator - repeatMetadata.fee);
-    assert.deepEqual(await snapshot(), beforeState);
+    assert.deepEqual(await snapshot(stateKeys), beforeState);
     console.log('PASS repeated initialization: confirmed on-chain rejection, all PDA balances/data unchanged');
+
+    for (const item of extraCampaigns) {
+      const duplicate = instruction('initialize_campaign', item.owner, [item.key, item.vaultKey], item.id);
+      const beforeOwner = (await rpc.getBalance(item.owner.address, { commitment: 'confirmed' }).send()).value;
+      await assert.rejects(send(duplicate, item.owner));
+      assert.equal((await rpc.getBalance(item.owner.address, { commitment: 'confirmed' }).send()).value, beforeOwner);
+      const metadata = await failedTransaction(duplicate, item.owner, /Custom.*0/);
+      assert.deepEqual(await snapshot(stateKeys), beforeState);
+      assert.equal((await rpc.getBalance(item.owner.address, { commitment: 'confirmed' }).send()).value, beforeOwner - metadata.fee);
+    }
+    console.log('PASS duplicate creator + campaign_id rejected for all five campaigns, all PDA balances/data unchanged');
+
 
   } finally {
     if (validator.exitCode === null && !spawnError) {

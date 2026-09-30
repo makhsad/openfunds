@@ -31,4 +31,20 @@ Contribution rejection, and repeat initialization rejection. Negative cases are
 checked in preflight and as confirmed failed transactions. Every involved PDA's
 data and lamports must remain unchanged. Confirmed failed transactions still
 charge the fee payer the network fee; preflight-rejected transactions do not.
-An existing second creator/backer fixture is used only to test wrong PDA wiring.
+The multi-campaign test initializes Creator A IDs 1/2/3 and Creator B IDs 1/2.
+It verifies separate vaults and per-campaign backer records, isolated contributions,
+cross-campaign substitution rejection, u64 overflow rejection, and duplicate
+initialization rejection for all five campaigns.
+
+`initialize_campaign(campaign_id: u64)` uses these seeds:
+
+- Campaign: `b"campaign"`, creator public key, campaign ID as eight little-endian bytes.
+- Vault: `b"vault"`, campaign public key.
+- Contribution: `b"contribution"`, campaign public key, backer public key.
+
+Campaign state occupies 56 bytes: 8 discriminator + 32 creator + 8 campaign ID +
+8 total contributed. IDs are chosen by the caller and are unique per creator;
+different creators may reuse the same ID. Both contribution totals use checked
+addition. This changes the previous campaign addresses and account layout, so
+old local campaigns must be recreated on a fresh ledger. No account migration
+is included in this local milestone.

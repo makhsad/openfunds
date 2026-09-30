@@ -7,8 +7,9 @@ declare_id!("ceaCN9GAuLuPrrH65eoDJCh44ZPNWR5UZog6tvVH2DA");
 pub mod openfunds {
     use super::*;
 
-    pub fn initialize_campaign(ctx: Context<InitializeCampaign>) -> Result<()> {
+    pub fn initialize_campaign(ctx: Context<InitializeCampaign>, campaign_id: u64) -> Result<()> {
         ctx.accounts.campaign.creator = ctx.accounts.creator.key();
+        ctx.accounts.campaign.campaign_id = campaign_id;
         ctx.accounts.campaign.total_contributed = 0;
         Ok(())
     }
@@ -52,11 +53,12 @@ pub mod openfunds {
 }
 
 #[derive(Accounts)]
+#[instruction(campaign_id: u64)]
 pub struct InitializeCampaign<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
-    #[account(init, payer = creator, space = 48,
-        seeds = [b"campaign", creator.key().as_ref()], bump)]
+    #[account(init, payer = creator, space = 8 + 32 + 8 + 8,
+        seeds = [b"campaign", creator.key().as_ref(), campaign_id.to_le_bytes().as_ref()], bump)]
     pub campaign: Account<'info, Campaign>,
     #[account(init, payer = creator, space = 8,
         seeds = [b"vault", campaign.key().as_ref()], bump)]
@@ -68,7 +70,7 @@ pub struct InitializeCampaign<'info> {
 pub struct Contribute<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
-    #[account(mut, seeds = [b"campaign", campaign.creator.as_ref()], bump)]
+    #[account(mut, seeds = [b"campaign", campaign.creator.as_ref(), campaign.campaign_id.to_le_bytes().as_ref()], bump)]
     pub campaign: Account<'info, Campaign>,
     #[account(mut, seeds = [b"vault", campaign.key().as_ref()], bump)]
     pub vault: Account<'info, Vault>,
@@ -81,6 +83,7 @@ pub struct Contribute<'info> {
 #[account]
 pub struct Campaign {
     pub creator: Pubkey,
+    pub campaign_id: u64,
     pub total_contributed: u64,
 }
 
