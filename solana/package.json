@@ -8,7 +8,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --types node config.ts balance.ts check-balance.ts",
-    "balance": "tsx check-balance.ts"
+    "balance": "tsx check-balance.ts",
+    "build:local": "node anchor/scripts/build-local.mjs",
+    "test:local": "npm run build:local && cd anchor && ../node_modules/.bin/tsx --test tests/openfunds.test.ts",
+    "typecheck:tests": "tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --types node anchor/tests/openfunds.test.ts"
   },
   "dependencies": {
     "@solana/kit": "8.4.0"
