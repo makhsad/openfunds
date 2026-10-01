@@ -103,6 +103,7 @@
 }
 .of-navbar nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 26px;
   flex: 1;

@@ -15,7 +15,10 @@ export interface SolanaCampaignGateway {
 }
 
 export const SOLANA_CAPABILITIES = Object.freeze({
-  frontendConnected: false,
+  frontendConnected: true,
+  frontendRoute: "/solana",
+  network: "devnet",
+  demoProjectsConnected: false,
   source: "solana/anchor/programs/openfunds/src/lib.rs",
   availableProgramInstructions: ["initialize_campaign", "contribute"] as const,
   campaignSeed: ["campaign", "creator public key"] as const,
@@ -30,7 +33,7 @@ export function requireSolanaGateway(
 ): SolanaCampaignGateway {
   if (!gateway)
     throw new Error(
-      "Solana wallet and RPC integration are not connected. Use the clearly labelled local demo.",
+      "A connected Solana gateway is required. Open the Devnet page to connect Phantom.",
     );
   return gateway;
 }

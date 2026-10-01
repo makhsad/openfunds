@@ -11,6 +11,7 @@ import type { DemoOutcome } from "@/types/crowdfunding";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const isDevnet = path === "/solana";
   const {
     state,
     pending,
@@ -28,12 +29,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <div className="of-demo-banner" role="region" aria-label="Demo mode">
+      <div
+        className="of-demo-banner"
+        role="region"
+        aria-label={isDevnet ? "Solana Devnet" : "Demo mode"}
+      >
         <span className="of-container">
           <FlaskConical size={14} aria-hidden="true" />
-          <strong>Demo workspace</strong>
+          <strong>{isDevnet ? "Solana Devnet" : "Demo workspace"}</strong>
           <span>
-            Explore the experience. Balances, votes and releases are simulated.
+            {isDevnet
+              ? "Test SOL · Confirm transactions in Phantom."
+              : "Explore the experience. Balances, votes and releases are simulated."}
           </span>
         </span>
       </div>
@@ -47,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ["/projects", "Explore Projects"],
               ["/create", "Create Project"],
               ["/dashboard", "Dashboard"],
+              ["/solana", "Devnet"],
               ["/#how-it-works", "How It Works"],
             ].map(([href, label]) => (
               <Link
@@ -58,34 +66,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="of-identity">
-            <span className="of-avatar">
-              {state?.identityId === "creator"
-                ? "CR"
-                : state?.identityId === "backer-a"
-                  ? "BA"
-                  : state?.identityId === "backer-b"
-                    ? "BB"
-                    : "V"}
-            </span>
-            <label>
-              <span>DEMO IDENTITY</span>
-              <select
-                aria-label="Demo identity"
-                disabled={!state || pending}
-                value={state?.identityId ?? "visitor"}
-                onChange={(event) =>
-                  setIdentity(event.target.value as DemoIdentityId)
-                }
-              >
-                {DEMO_IDENTITIES.map((identity) => (
-                  <option key={identity.id} value={identity.id}>
-                    {identity.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {isDevnet ? (
+            <Link className="of-button secondary" href="/projects">
+              Explore demo
+            </Link>
+          ) : (
+            <div className="of-identity">
+              <span className="of-avatar">
+                {state?.identityId === "creator"
+                  ? "CR"
+                  : state?.identityId === "backer-a"
+                    ? "BA"
+                    : state?.identityId === "backer-b"
+                      ? "BB"
+                      : "V"}
+              </span>
+              <label>
+                <span>DEMO IDENTITY</span>
+                <select
+                  aria-label="Demo identity"
+                  disabled={!state || pending}
+                  value={state?.identityId ?? "visitor"}
+                  onChange={(event) =>
+                    setIdentity(event.target.value as DemoIdentityId)
+                  }
+                >
+                  {DEMO_IDENTITIES.map((identity) => (
+                    <option key={identity.id} value={identity.id}>
+                      {identity.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
@@ -105,52 +119,59 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/create">Start a project</Link>
             <Link href="/demo">Original demo lab</Link>
+            <Link href="/solana">Test with Phantom on Devnet</Link>
           </nav>
           <div className="of-footer-note">
             <strong>Built for a more accountable future.</strong>
             <p>
-              Local demo · No real SOL moves.
+              {isDevnet
+                ? "Devnet test SOL · Confirm each transaction in Phantom."
+                : "Local demo · No real SOL moves."}
               <br />
-              Wallet and on-chain actions are not connected.
+              {isDevnet
+                ? "Campaign creation and contributions only."
+                : "Use the Devnet page to connect your wallet."}
             </p>
           </div>
         </div>
         <div className="of-container of-footer-bottom">
           <span>OpenFunds · Hackathon preview</span>
-          <details className="of-demo-settings">
-            <summary>
-              <CircleHelp size={14} /> Demo controls
-            </summary>
-            <div>
-              <label>
-                Next operation
-                <select
-                  aria-label="Next demo operation"
-                  value={outcome}
+          {!isDevnet && (
+            <details className="of-demo-settings">
+              <summary>
+                <CircleHelp size={14} /> Demo controls
+              </summary>
+              <div>
+                <label>
+                  Next operation
+                  <select
+                    aria-label="Next demo operation"
+                    value={outcome}
+                    disabled={pending}
+                    onChange={(event) =>
+                      setOutcome(event.target.value as DemoOutcome)
+                    }
+                  >
+                    <option value="success">Success</option>
+                    <option value="error">Fail</option>
+                    <option value="cancel">Cancel</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="of-button secondary"
                   disabled={pending}
-                  onChange={(event) =>
-                    setOutcome(event.target.value as DemoOutcome)
-                  }
+                  onClick={resetDemo}
                 >
-                  <option value="success">Success</option>
-                  <option value="error">Fail</option>
-                  <option value="cancel">Cancel</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                className="of-button secondary"
-                disabled={pending}
-                onClick={resetDemo}
-              >
-                Reset Demo Data
-              </button>
-              <p>Reset removes projects and changes saved in this browser.</p>
-            </div>
-          </details>
+                  Reset Demo Data
+                </button>
+                <p>Reset removes projects and changes saved in this browser.</p>
+              </div>
+            </details>
+          )}
         </div>
       </footer>
-      {(pending || error || notice) && (
+      {!isDevnet && (pending || error || notice) && (
         <div
           className={`of-notification ${error ? "error" : ""}`}
           role={error ? "alert" : "status"}

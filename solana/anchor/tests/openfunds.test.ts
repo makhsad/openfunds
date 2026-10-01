@@ -6,12 +6,26 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import {
   AccountRole, address, createSolanaRpc, createTransactionMessage,
+  isSolanaError, SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
   generateKeyPairSigner, getAddressEncoder, getProgramDerivedAddress,
   getSignatureFromTransaction, getTransactionEncoder, pipe,
   appendTransactionMessageInstruction, setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash, signTransactionMessageWithSigners,
   type Address, type Instruction, type KeyPairSigner,
 } from '@solana/kit';
+
+// RPC simulation errors wrap the precise program error in `cause`.
+function isCustomProgramError(error: unknown, expectedCode: number): boolean {
+  const seen = new Set<unknown>();
+  while (error instanceof Error && !seen.has(error)) {
+    seen.add(error);
+    if (isSolanaError(error, SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM)) {
+      return error.context.code === expectedCode;
+    }
+    error = error.cause;
+  }
+  return false;
+}
 
 // Standalone local harness: no Anchor provider wallet or keypair files are read.
 test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
@@ -172,13 +186,14 @@ test('OpenFunds local contribution flow', { timeout: 120_000 }, async () => {
     const beforeBalance = await balance();
     const beforeCampaign = await account(campaign, 'Campaign', 48);
     const beforeContribution = await account(contribution, 'Contribution', 80);
-    for (const [keys, amount, error] of [
-      [[campaign, vault, contribution], 0n, /ZeroContribution|6000|0x1770/],
-      [[otherCampaign, vault, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
-      [[campaign, otherVault, contribution], 1n, /ConstraintSeeds|2006|0x7d6/],
-      [[campaign, vault, otherContribution], 1n, /ConstraintSeeds|2006|0x7d6/],
+    for (const [keys, amount, errorCode] of [
+      [[campaign, vault, contribution], 0n, 6000],
+      [[otherCampaign, vault, contribution], 1n, 2006],
+      [[campaign, otherVault, contribution], 1n, 2006],
+      [[campaign, vault, otherContribution], 1n, 2006],
     ] as const) {
-      await assert.rejects(send(instruction('contribute', backer, [...keys], amount), backer), error);
+      await assert.rejects(send(instruction('contribute', backer, [...keys], amount), backer),
+        error => isCustomProgramError(error, errorCode));
       assert.equal(await balance(), beforeBalance);
       assert.deepEqual(await account(campaign, 'Campaign', 48), beforeCampaign);
       assert.deepEqual(await account(contribution, 'Contribution', 80), beforeContribution);

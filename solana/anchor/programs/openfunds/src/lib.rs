@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{self, Transfer};
 
-declare_id!("ceaCN9GAuLuPrrH65eoDJCh44ZPNWR5UZog6tvVH2DA");
+declare_id!("6NTwPcQMGArcmjStAfica2toF3qqwSD1nsEw2qc1RRHA");
 
 #[program]
 pub mod openfunds {
