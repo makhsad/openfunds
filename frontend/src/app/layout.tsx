@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./projects.css";
+import { ProjectProvider } from "@/hooks/use-projects";
+import { AppShell } from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "OpenFunds | Community Crowdfunding",
@@ -13,7 +16,11 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ProjectProvider>
+          <AppShell>{children}</AppShell>
+        </ProjectProvider>
+      </body>
     </html>
   );
 }

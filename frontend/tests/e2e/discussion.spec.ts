@@ -9,7 +9,7 @@ const send = (page: Page) =>
   discussion(page).getByRole("button", { name: "Send message", exact: true });
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/demo");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Fund ideas.",
   );

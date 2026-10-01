@@ -1,5 +1,4 @@
-import { CampaignPage } from "@/components/campaign-page";
-
-export default function Home() {
-  return <CampaignPage />;
+import { ProjectsHome } from "@/components/projects-home";
+export default function HomePage() {
+  return <ProjectsHome />;
 }

@@ -15,7 +15,7 @@ async function controls(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/demo");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Fund ideas. Build together.",
   );
