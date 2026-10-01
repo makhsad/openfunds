@@ -1,5 +1,7 @@
 import { FlaskConical, RotateCcw, SlidersHorizontal } from "lucide-react";
 import type { DemoOutcome, Scenario } from "@/types/crowdfunding";
+import { discussionRoleLabels } from "@/lib/discussion";
+import type { DiscussionRole } from "@/types/discussion";
 
 export type HistoryPreview = "normal" | "empty" | "loading";
 
@@ -8,6 +10,7 @@ export function DemoControls({
   outcome,
   history,
   disabled,
+  discussion,
   onScenario,
   onOutcome,
   onHistory,
@@ -17,6 +20,16 @@ export function DemoControls({
   outcome: DemoOutcome;
   history: HistoryPreview;
   disabled: boolean;
+  discussion: {
+    role: DiscussionRole;
+    contextIndex: number;
+    contexts: readonly { label: string }[];
+    canPost: boolean;
+    isSubmitting: boolean;
+    onRole: (role: DiscussionRole) => void;
+    onContext: (index: number) => void;
+    onCanPost: (allowed: boolean) => void;
+  };
   onScenario: (value: Scenario) => void;
   onOutcome: (value: DemoOutcome) => void;
   onHistory: (value: HistoryPreview) => void;
@@ -62,7 +75,7 @@ export function DemoControls({
             Operation outcome
             <select
               value={outcome}
-              disabled={disabled}
+              disabled={disabled || discussion.isSubmitting}
               onChange={(event) => onOutcome(event.target.value as DemoOutcome)}
             >
               <option value="success">Success</option>
@@ -97,6 +110,57 @@ export function DemoControls({
             Demo changes last until refresh.
           </p>
         </div>
+        <fieldset className="discussion-demo-settings">
+          <legend>Discussion simulation</legend>
+          <div className="demo-settings">
+            <label>
+              Discussion role
+              <select
+                value={discussion.role}
+                disabled={disabled || discussion.isSubmitting}
+                onChange={(event) =>
+                  discussion.onRole(event.target.value as DiscussionRole)
+                }
+              >
+                {Object.entries(discussionRoleLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Discussion context
+              <select
+                value={discussion.contextIndex}
+                disabled={disabled}
+                onChange={(event) =>
+                  discussion.onContext(Number(event.target.value))
+                }
+              >
+                {discussion.contexts.map(({ label }, index) => (
+                  <option key={index} value={index}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="demo-posting-toggle">
+              <input
+                type="checkbox"
+                checked={discussion.canPost}
+                disabled={disabled || discussion.isSubmitting}
+                onChange={(event) => discussion.onCanPost(event.target.checked)}
+              />
+              Allow discussion posting
+            </label>
+          </div>
+          <p className="discussion-demo-note">
+            Roles are simulated and independent of the wallet. Added messages
+            disappear after a page reload. Switching discussion contexts clears
+            the draft; each thread keeps its own posts until reset or reload.
+          </p>
+        </fieldset>
       </details>
     </aside>
   );
