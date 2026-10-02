@@ -14,6 +14,7 @@ import {
   OPENFUNDS_PROGRAM_ADDRESS,
   PhantomCampaignGateway,
   TransactionConfirmationError,
+  TransactionStageError,
   getPhantomProvider,
   isCampaignMissing,
   type CampaignChainState,
@@ -63,6 +64,13 @@ function formatChange(value: string) {
 }
 
 function errorMessage(cause: unknown) {
+  if (cause instanceof TransactionStageError) {
+    if (cause.stage === "preparation")
+      return `Could not prepare the Devnet transaction. ${cause.message}`;
+    if (cause.cancelled)
+      return "Transaction approval was cancelled in Phantom.";
+    return `Phantom could not complete this transaction. ${cause.message} Check Phantom activity before trying again.`;
+  }
   return cause instanceof Error
     ? cause.message
     : "The operation could not finish. Try refreshing the chain state.";
@@ -550,9 +558,18 @@ export function SolanaTest() {
             <h2 id="create-heading">Create your campaign</h2>
           </div>
           <p>
-            The connected creator signs in Phantom. A new campaign starts with 0
-            SOL contributed and its own vault.
+            Campaign creation uses your connected Phantom wallet. The creator
+            address below is only used to find a campaign. A new campaign starts
+            with 0 SOL contributed and its own vault.
           </p>
+          {walletAddress &&
+            creatorInput.trim() &&
+            creatorInput.trim() !== walletAddress && (
+              <p className="chain-helper">
+                To create a campaign for the creator entered below, connect that
+                creator&apos;s account in Phantom first.
+              </p>
+            )}
           <button
             className="of-button"
             type="button"
@@ -655,8 +672,9 @@ export function SolanaTest() {
           <div className="chain-blocked">
             <strong>No campaign found for this creator.</strong>
             <p>
-              The creator must connect this account and create the campaign
-              first.
+              The creator must connect this account in Phantom and create the
+              campaign first. A backer can then load it using this public
+              address.
             </p>
           </div>
         )}
@@ -788,7 +806,7 @@ export function SolanaTest() {
         </p>
         {receipts.length === 0 ? (
           <p className="chain-empty">
-            No submitted transactions in this session yet.
+            No transaction receipt has been received in this session yet.
           </p>
         ) : (
           <ul className="chain-transactions">

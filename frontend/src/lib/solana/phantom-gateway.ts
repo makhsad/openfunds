@@ -8,7 +8,6 @@ import {
   createTransactionMessage,
   getAddressDecoder,
   getAddressEncoder,
-  getBase58Decoder,
   getBase58Encoder,
   getBase64Encoder,
   getCompiledTransactionMessageEncoder,
@@ -18,6 +17,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   type Instruction,
 } from "@solana/kit";
+import { Message, Transaction } from "@solana/web3.js";
 import type { SolanaCampaignGateway } from "./campaign-boundary";
 
 export const OPENFUNDS_PROGRAM_ADDRESS =
@@ -47,13 +47,10 @@ export interface PhantomProvider {
   readonly publicKey: PhantomPublicKey | null;
   connect(): Promise<{ publicKey: PhantomPublicKey }>;
   disconnect(): Promise<void>;
-  request(request: {
-    method: "signAndSendTransaction";
-    params: {
-      message: string;
-      options: { preflightCommitment: "confirmed"; skipPreflight: false };
-    };
-  }): Promise<unknown>;
+  signAndSendTransaction(
+    transaction: Transaction,
+    options: { preflightCommitment: "confirmed"; skipPreflight: false },
+  ): Promise<unknown>;
   on?(
     event: "accountChanged" | "disconnect",
     listener: (publicKey?: PhantomPublicKey | null) => void,
@@ -139,6 +136,33 @@ export class CampaignNotInitializedError extends Error {
 
 export function isCampaignMissing(error: unknown): boolean {
   return error instanceof CampaignNotInitializedError;
+}
+
+export class TransactionStageError extends Error {
+  readonly cancelled: boolean;
+
+  constructor(
+    public readonly stage: "preparation" | "wallet",
+    cause: unknown,
+  ) {
+    const detail =
+      cause instanceof Error
+        ? cause.message
+        : typeof cause === "object" &&
+            cause !== null &&
+            "message" in cause &&
+            typeof cause.message === "string"
+          ? cause.message
+          : "The transaction operation could not finish.";
+    super(detail, { cause });
+    this.name = "TransactionStageError";
+    this.cancelled =
+      stage === "wallet" &&
+      typeof cause === "object" &&
+      cause !== null &&
+      "code" in cause &&
+      cause.code === 4001;
+  }
 }
 
 export class TransactionConfirmationError extends Error {
@@ -572,48 +596,80 @@ export class PhantomCampaignGateway implements SolanaCampaignGateway {
       throw new Error(
         "Phantom account changed. Review the new wallet and try again.",
       );
-    const { value: lifetime } = await this.rpc.call<{
-      value: { blockhash: string; lastValidBlockHeight: bigint | number };
-    }>("getLatestBlockhash", [{ commitment: "confirmed" }]);
-    const lastValidBlockHeight = rpcInteger(
-      lifetime.lastValidBlockHeight,
-      "block height",
-    );
-    const message = pipe(
-      createTransactionMessage({ version: "legacy" }),
-      (m) => setTransactionMessageFeePayer(address(wallet), m),
-      (m) =>
-        setTransactionMessageLifetimeUsingBlockhash(
-          { blockhash: blockhash(lifetime.blockhash), lastValidBlockHeight },
-          m,
-        ),
-      (m) => appendTransactionMessageInstruction(ix, m),
-    );
-    const serializedMessage = getBase58Decoder().decode(
-      getCompiledTransactionMessageEncoder().encode(
+    let transaction: Transaction;
+    let lastValidBlockHeight: bigint;
+    try {
+      const { value: lifetime } = await this.rpc.call<{
+        value: { blockhash: string; lastValidBlockHeight: bigint | number };
+      }>("getLatestBlockhash", [{ commitment: "confirmed" }]);
+      lastValidBlockHeight = rpcInteger(
+        lifetime.lastValidBlockHeight,
+        "block height",
+      );
+      const message = pipe(
+        createTransactionMessage({ version: "legacy" }),
+        (m) => setTransactionMessageFeePayer(address(wallet), m),
+        (m) =>
+          setTransactionMessageLifetimeUsingBlockhash(
+            { blockhash: blockhash(lifetime.blockhash), lastValidBlockHeight },
+            m,
+          ),
+        (m) => appendTransactionMessageInstruction(ix, m),
+      );
+      const messageBytes = getCompiledTransactionMessageEncoder().encode(
         compileTransactionMessage(message),
-      ),
-    );
+      );
+      const decoded = Message.from(Uint8Array.from(messageBytes));
+      // A genuine unsigned legacy transaction lets Phantom use its supported
+      // object serializer. All required signer slots remain null.
+      transaction = Transaction.populate(
+        decoded,
+        Array<string>(decoded.header.numRequiredSignatures).fill(
+          "1".repeat(64),
+        ),
+      );
+      const walletMessage = transaction.serializeMessage();
+      if (
+        walletMessage.length !== messageBytes.length ||
+        !walletMessage.every((value, index) => value === messageBytes[index])
+      )
+        throw new Error(
+          "The Phantom transaction changed the prepared message.",
+        );
+    } catch (cause) {
+      throw new TransactionStageError("preparation", cause);
+    }
     if (this.requireWallet() !== wallet)
       throw new Error(
         "Phantom account changed. Review the new wallet and try again.",
       );
-    const result = await this.provider!.request({
-      method: "signAndSendTransaction",
-      params: {
-        message: serializedMessage,
-        options: { preflightCommitment: "confirmed", skipPreflight: false },
-      },
-    });
-    const signed = result as { signature?: unknown } | null;
-    if (
-      !signed ||
-      typeof signed.signature !== "string" ||
-      getBase58Encoder().encode(signed.signature).length !== 64
-    )
-      throw new Error("Phantom returned an invalid transaction signature.");
-    await this.confirm(signed.signature, lastValidBlockHeight);
-    return signed.signature;
+    let result: unknown;
+    try {
+      if (typeof this.provider!.signAndSendTransaction !== "function")
+        throw new Error(
+          "Phantom's transaction interface is unavailable. Reload this page with the Phantom browser extension.",
+        );
+      result = await this.provider!.signAndSendTransaction(transaction, {
+        preflightCommitment: "confirmed",
+        skipPreflight: false,
+      });
+    } catch (cause) {
+      throw new TransactionStageError("wallet", cause);
+    }
+    let signature: string;
+    try {
+      const signed = result as { signature?: unknown } | null;
+      if (!signed || typeof signed.signature !== "string")
+        throw new Error("Phantom returned an invalid transaction signature.");
+      const signatureBytes = getBase58Encoder().encode(signed.signature);
+      if (signatureBytes.length !== 64)
+        throw new Error("Phantom returned an invalid transaction signature.");
+      signature = signed.signature;
+    } catch (cause) {
+      throw new TransactionStageError("wallet", cause);
+    }
+    await this.confirm(signature, lastValidBlockHeight);
+    return signature;
   }
 
   private async confirm(

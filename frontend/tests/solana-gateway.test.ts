@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
+import { Message, Transaction } from "@solana/web3.js";
 import {
   address,
   getAddressDecoder,
   getAddressEncoder,
   getBase58Decoder,
-  getBase58Encoder,
   getCompiledTransactionMessageDecoder,
   getProgramDerivedAddress,
 } from "@solana/kit";
@@ -18,6 +18,7 @@ import {
   OPENFUNDS_PROGRAM_ADDRESS,
   PhantomCampaignGateway,
   TransactionConfirmationError,
+  TransactionStageError,
   deriveCampaignAddresses,
   deriveContributionAddress,
   parseContributionLamports,
@@ -33,7 +34,10 @@ const backer = getAddressDecoder().decode(new Uint8Array(32).fill(2));
 const other = getAddressDecoder().decode(new Uint8Array(32).fill(3));
 const validSignature = getBase58Decoder().decode(new Uint8Array(64).fill(7));
 
-type WalletRequest = Parameters<PhantomProvider["request"]>[0];
+type WalletRequest = {
+  transaction: Parameters<PhantomProvider["signAndSendTransaction"]>[0];
+  options: Parameters<PhantomProvider["signAndSendTransaction"]>[1];
+};
 
 class TestPhantom implements PhantomProvider {
   readonly isPhantom = true;
@@ -63,9 +67,31 @@ class TestPhantom implements PhantomProvider {
     this.publicKey = null;
   }
 
-  async request(request: WalletRequest) {
+  async signAndSendTransaction(
+    transaction: WalletRequest["transaction"],
+    options: WalletRequest["options"],
+  ) {
+    assert.ok(transaction instanceof Transaction);
+    const messageBytes = transaction.serializeMessage();
+    assert.deepEqual(transaction.serializeMessage(), messageBytes);
+    assert.ok(transaction.signatures.every((slot) => slot.signature === null));
+    const wire = transaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    });
+    // Use the actual independent legacy transaction decoder at the wallet
+    // boundary, rather than accepting arbitrary base58 message text.
+    const decoded = Transaction.from(wire);
+    assert.deepEqual(decoded.serializeMessage(), messageBytes);
+    assert.ok(decoded.signatures.every((slot) => slot.signature === null));
+    assert.deepEqual(Message.from(messageBytes).serialize(), messageBytes);
+    const request = { transaction, options };
     this.requests.push(request);
     return this.response(request);
+  }
+
+  async request() {
+    throw new Error("Reached end of buffer unexpectedly");
   }
 
   on(
@@ -378,19 +404,19 @@ test("executable flag alone is insufficient: missing ProgramData blocks signing"
   await assert.rejects(f.gateway.initializeCampaign(), /not been deployed/);
 });
 
-test("initialize sends an unsigned legacy Anchor message and succeeds only after confirmation", async () => {
+test("initialize hands Phantom a genuine unsigned legacy transaction and succeeds only after confirmation", async () => {
   const f = await fixture({ campaignExists: false, wallet: creator });
   const result = await f.gateway.initializeCampaign();
   assert.equal(result.campaignAddress, f.campaignAddress);
   assert.equal(result.signature, validSignature);
   const sent = f.provider.requests[0];
-  assert.equal(sent.method, "signAndSendTransaction");
-  assert.deepEqual(sent.params.options, {
+  assert.ok(sent.transaction instanceof Transaction);
+  assert.deepEqual(sent.options, {
     preflightCommitment: "confirmed",
     skipPreflight: false,
   });
   const message = getCompiledTransactionMessageDecoder().decode(
-    getBase58Encoder().encode(sent.params.message),
+    sent.transaction.serializeMessage(),
   );
   assert.equal(message.version, "legacy");
   assert.equal(message.staticAccounts[0], creator);
@@ -422,7 +448,7 @@ test("repeat contribution uses the same PDA and exact 10000000 little-endian amo
       { signature: validSignature },
     );
     const message = getCompiledTransactionMessageDecoder().decode(
-      getBase58Encoder().encode(f.provider.requests[i].params.message),
+      f.provider.requests[i].transaction.serializeMessage(),
     );
     assert.equal(message.version, "legacy");
     const ix = message.instructions[0];
@@ -565,4 +591,78 @@ test("full canonical Devnet genesis hash succeeds while a truncated hash fails",
   f.state.genesisHash = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
   await assert.rejects(f.gateway.readWalletBalance(), /not Solana Devnet/);
   assert.equal(f.provider.requests.length, 0);
+});
+
+test("transaction preparation errors retain their stage and never invoke Phantom", async () => {
+  const f = await fixture({ campaignExists: false, wallet: creator });
+  f.state.rpcError = "getLatestBlockhash";
+  await assert.rejects(f.gateway.initializeCampaign(), (error) => {
+    assert.ok(error instanceof TransactionStageError);
+    assert.equal(error.stage, "preparation");
+    assert.equal(error.message, "RPC unavailable");
+    assert.equal(error.cancelled, false);
+    return true;
+  });
+  assert.equal(f.provider.requests.length, 0);
+});
+
+test("Phantom object errors preserve wallet details and explicit cancellation", async () => {
+  for (const scenario of ["cancelled", "buffer"] as const) {
+    const f = await fixture({ campaignExists: false, wallet: creator });
+    const cause =
+      scenario === "cancelled"
+        ? { code: 4001, message: "User rejected the request" }
+        : { code: -32603, message: "Reached end of buffer unexpectedly" };
+    f.provider.response = async () => {
+      throw cause;
+    };
+    await assert.rejects(f.gateway.initializeCampaign(), (error) => {
+      assert.ok(error instanceof TransactionStageError);
+      assert.equal(error.stage, "wallet");
+      assert.equal(error.message, cause.message);
+      assert.equal(error.cancelled, scenario === "cancelled");
+      assert.equal(error.cause, cause);
+      return true;
+    });
+    assert.equal(
+      f.calls.filter((call) => call.method === "getSignatureStatuses").length,
+      0,
+    );
+    f.provider.response = async () => ({ signature: validSignature });
+    assert.equal(
+      (await f.gateway.initializeCampaign()).signature,
+      validSignature,
+    );
+  }
+});
+
+test("missing typed Phantom interface produces a wallet-stage error without raw-request fallback", async () => {
+  const f = await fixture({ campaignExists: false, wallet: creator });
+  Object.defineProperty(f.provider, "signAndSendTransaction", {
+    value: undefined,
+  });
+  await assert.rejects(f.gateway.initializeCampaign(), (error) => {
+    assert.ok(error instanceof TransactionStageError);
+    assert.equal(error.stage, "wallet");
+    assert.match(error.message, /interface is unavailable/);
+    return true;
+  });
+  assert.equal(f.provider.requests.length, 0);
+});
+
+test("invalid wallet receipts cannot be confirmed or reported as successful", async () => {
+  for (const response of [
+    null,
+    {},
+    { signature: "bad-signature" },
+    { signature: "1" },
+  ]) {
+    const f = await fixture({ campaignExists: false, wallet: creator });
+    f.provider.response = async () => response;
+    await assert.rejects(f.gateway.initializeCampaign(), TransactionStageError);
+    assert.equal(
+      f.calls.filter((call) => call.method === "getSignatureStatuses").length,
+      0,
+    );
+  }
 });
