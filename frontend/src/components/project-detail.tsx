@@ -66,7 +66,7 @@ export function ProjectDetail({ id }: { id: string }) {
         <Flag size={32} />
         <h1>Project not found</h1>
         <p>This project is unavailable or is a private draft.</p>
-        <Link className="of-button" href="/projects">
+        <Link className="of-button" href="/projects?mode=demo">
           Explore projects
         </Link>
       </div>
@@ -105,7 +105,7 @@ export function ProjectDetail({ id }: { id: string }) {
   return (
     <div className="of-container of-page of-detail">
       <div className="of-detail-top">
-        <Link className="of-text-link muted" href="/projects">
+        <Link className="of-text-link muted" href="/projects?mode=demo">
           <ArrowLeft size={15} /> All projects
         </Link>
         <span className="of-local-chip">

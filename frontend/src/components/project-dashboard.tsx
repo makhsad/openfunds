@@ -52,7 +52,7 @@ export function ProjectDashboard() {
             >
               Use Backer A
             </button>
-            <Link href="/projects" className="of-button secondary">
+            <Link href="/projects?mode=demo" className="of-button secondary">
               Explore projects
             </Link>
           </div>
@@ -85,7 +85,7 @@ export function ProjectDashboard() {
           </p>
         </div>
         {state.identityId === "creator" && (
-          <Link href="/create" className="of-button">
+          <Link href="/create?mode=demo" className="of-button">
             <Plus size={16} aria-hidden="true" /> Create project
           </Link>
         )}
@@ -184,11 +184,11 @@ export function ProjectDashboard() {
                 : "Explore projects and make a demo contribution to follow their progress here."}
             </p>
             {tab === "mine" && state.identityId === "creator" ? (
-              <Link className="of-button" href="/create">
+              <Link className="of-button" href="/create?mode=demo">
                 Create your first project
               </Link>
             ) : (
-              <Link className="of-button" href="/projects">
+              <Link className="of-button" href="/projects?mode=demo">
                 Explore projects <ArrowRight size={15} aria-hidden="true" />
               </Link>
             )}

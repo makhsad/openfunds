@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import "./projects.css";
 import { ProjectProvider } from "@/hooks/use-projects";
@@ -7,7 +8,7 @@ import { AppShell } from "@/components/app-shell";
 export const metadata: Metadata = {
   title: "OpenFunds | Community Crowdfunding",
   description:
-    "Support projects you believe in. Funds are released milestone by milestone, with backers voting on each step.",
+    "Create and support campaigns on Solana Devnet. Track campaign vaults, sponsor contributions and confirmed transactions across devices.",
   robots: { index: false, follow: false },
 };
 
@@ -17,9 +18,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ProjectProvider>
-          <AppShell>{children}</AppShell>
-        </ProjectProvider>
+        <Suspense
+          fallback={
+            <main className="of-container of-page" role="status">
+              Loading OpenFunds…
+            </main>
+          }
+        >
+          <ProjectProvider>
+            <AppShell>{children}</AppShell>
+          </ProjectProvider>
+        </Suspense>
       </body>
     </html>
   );

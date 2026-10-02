@@ -76,7 +76,10 @@ export type DevnetRpcMethod =
   | "getBalance"
   | "getLatestBlockhash"
   | "getSignatureStatuses"
-  | "getBlockHeight";
+  | "getBlockHeight"
+  | "getProgramAccounts"
+  | "getSignaturesForAddress"
+  | "getTransaction";
 
 export interface DevnetRpcTransport {
   call<T>(method: DevnetRpcMethod, params: readonly unknown[]): Promise<T>;

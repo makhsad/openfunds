@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { CampaignLedger } from "./campaign-ledger";
+import {
+  DevnetLedger,
+  type DevnetActivity,
+  type DevnetSupport,
+} from "@/lib/solana/devnet-ledger";
 import {
   CheckCircle2,
   ExternalLink,
@@ -16,6 +23,7 @@ import {
   TransactionConfirmationError,
   TransactionStageError,
   getPhantomProvider,
+  createDevnetRpcTransport,
   isCampaignMissing,
   type CampaignChainState,
 } from "@/lib/solana/phantom-gateway";
@@ -31,6 +39,7 @@ type Receipt = {
   action: "Create campaign" | "Contribute";
   wallet: string;
   state: "confirmed" | "pending" | "failed";
+  campaignAddress: string;
 };
 type ContributionChanges = {
   vault: string;
@@ -76,8 +85,17 @@ function errorMessage(cause: unknown) {
     : "The operation could not finish. Try refreshing the chain state.";
 }
 
-export function SolanaTest() {
+export function SolanaTest({
+  initialCreator = "",
+  projectView = false,
+  createView = false,
+}: {
+  initialCreator?: string;
+  projectView?: boolean;
+  createView?: boolean;
+} = {}) {
   const gatewayRef = useRef<PhantomCampaignGateway | null>(null);
+  const ledgerRef = useRef<DevnetLedger | null>(null);
   const mountedRef = useRef(false);
   const operationRef = useRef(false);
   const readEpochRef = useRef(0);
@@ -87,7 +105,7 @@ export function SolanaTest() {
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [program, setProgram] = useState<ProgramInspection | null>(null);
   const [programCheckFailed, setProgramCheckFailed] = useState(false);
-  const [creatorInput, setCreatorInput] = useState("");
+  const [creatorInput, setCreatorInput] = useState(initialCreator);
   const [selectedCreator, setSelectedCreator] = useState("");
   const [addresses, setAddresses] = useState<Addresses | null>(null);
   const [campaign, setCampaign] = useState<CampaignChainState | null>(null);
@@ -98,6 +116,14 @@ export function SolanaTest() {
   const [notice, setNotice] = useState<string | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [changes, setChanges] = useState<ContributionChanges | null>(null);
+  const [backers, setBackers] = useState<DevnetSupport[] | null>(null);
+  const [backersError, setBackersError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<DevnetActivity[] | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [hasMoreActivity, setHasMoreActivity] = useState(false);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [walletReadError, setWalletReadError] = useState<string | null>(null);
 
   const loadChain = useCallback(async (creatorAddress: string) => {
     const gateway = gatewayRef.current;
@@ -116,15 +142,27 @@ export function SolanaTest() {
     setAddresses(null);
     setChanges(null);
     setWalletBalance(null);
+    setWalletReadError(null);
+    setBackers(null);
+    setBackersError(null);
+    setActivity(null);
+    setActivityError(null);
+    setHistoryCursor(null);
+    setHasMoreActivity(false);
+    setLoadingActivity(false);
     try {
       const inspection = await gateway.inspectProgram();
       if (!isCurrent()) return null;
       setProgram(inspection);
       programChecked = true;
       if (readingWallet) {
-        const balance = await gateway.readWalletBalance();
-        if (!isCurrent()) return null;
-        setWalletBalance(balance);
+        try {
+          const balance = await gateway.readWalletBalance();
+          if (!isCurrent()) return null;
+          setWalletBalance(balance);
+        } catch (cause) {
+          if (isCurrent()) setWalletReadError(errorMessage(cause));
+        }
       }
       if (!creatorAddress.trim()) {
         setSelectedCreator("");
@@ -143,6 +181,24 @@ export function SolanaTest() {
         const state = await gateway.readCampaign(derived.campaignAddress);
         if (!isCurrent()) return null;
         setCampaign(state);
+        const ledger = ledgerRef.current;
+        if (ledger) {
+          setLoadingActivity(true);
+          const [backerResult, activityResult] = await Promise.allSettled([
+            ledger.readBackers(state.campaignAddress),
+            ledger.readActivity(state.campaignAddress),
+          ]);
+          if (!isCurrent()) return null;
+          if (backerResult.status === "fulfilled")
+            setBackers(backerResult.value);
+          else setBackersError(errorMessage(backerResult.reason));
+          if (activityResult.status === "fulfilled") {
+            setActivity(activityResult.value.items);
+            setHistoryCursor(activityResult.value.nextBefore);
+            setHasMoreActivity(activityResult.value.hasMore);
+          } else setActivityError(errorMessage(activityResult.reason));
+          setLoadingActivity(false);
+        }
         return state;
       } catch (cause) {
         if (!isCurrent()) return null;
@@ -165,13 +221,17 @@ export function SolanaTest() {
     mountedRef.current = true;
     const provider = getPhantomProvider();
     setHasPhantom(Boolean(provider));
+    const rpc = createDevnetRpcTransport();
     const gateway = new PhantomCampaignGateway({
       provider: provider ?? undefined,
+      rpc,
     });
+    ledgerRef.current = new DevnetLedger(rpc);
     gatewayRef.current = gateway;
     const connectedAddress = gateway.connectedAddress;
     setWalletAddress(connectedAddress);
-    setCreatorInput(connectedAddress ?? "");
+    const firstCreator = initialCreator || connectedAddress || "";
+    setCreatorInput(firstCreator);
     const unsubscribe = gateway.onWalletChange((address) => {
       readEpochRef.current += 1;
       setWalletAddress(address);
@@ -183,19 +243,23 @@ export function SolanaTest() {
         setError(null);
         setNotice(
           address
-            ? "Wallet changed. Refresh to read this account's balance and contribution."
+            ? "Wallet changed. Reading its contribution to the selected campaign."
             : "Phantom disconnected.",
         );
+        const creator = initialCreator || creatorRef.current || address || "";
+        setCreatorInput(creator);
+        void loadChain(creator);
       }
     });
-    void loadChain(connectedAddress ?? "");
+    void loadChain(firstCreator);
     return () => {
       mountedRef.current = false;
       readEpochRef.current += 1;
       unsubscribe();
       gatewayRef.current = null;
+      ledgerRef.current = null;
     };
-  }, [loadChain]);
+  }, [loadChain, initialCreator]);
 
   async function perform(
     label: string,
@@ -205,6 +269,7 @@ export function SolanaTest() {
     const gateway = gatewayRef.current;
     if (!gateway || operationRef.current) return;
     const operationWallet = gateway.connectedAddress;
+    const operationCampaign = addresses?.campaignAddress;
     operationRef.current = true;
     setBusy(label);
     setError(null);
@@ -220,12 +285,18 @@ export function SolanaTest() {
           receiptAction &&
           operationWallet
         ) {
+          const receiptCampaign =
+            receiptAction === "Create campaign"
+              ? (await gateway.deriveCampaignAddresses(operationWallet))
+                  .campaignAddress
+              : (operationCampaign ?? "");
           setReceipts((previous) => [
             {
               signature: cause.signature,
               action: receiptAction,
               wallet: operationWallet,
               state: cause.state,
+              campaignAddress: receiptCampaign,
             },
             ...previous,
           ]);
@@ -299,6 +370,7 @@ export function SolanaTest() {
             action: "Create campaign",
             wallet: signingWallet,
             state: "confirmed",
+            campaignAddress: result.campaignAddress,
           },
           ...previous,
         ]);
@@ -345,6 +417,7 @@ export function SolanaTest() {
             action: "Contribute",
             wallet: signingWallet,
             state: "confirmed",
+            campaignAddress,
           },
           ...previous,
         ]);
@@ -384,6 +457,48 @@ export function SolanaTest() {
     );
   }
 
+  async function loadOlderActivity() {
+    const ledger = ledgerRef.current;
+    const currentCampaign = campaign?.campaignAddress;
+    if (
+      !ledger ||
+      !currentCampaign ||
+      !historyCursor ||
+      loadingActivity ||
+      operationRef.current
+    )
+      return;
+    const epoch = readEpochRef.current;
+    setLoadingActivity(true);
+    setActivityError(null);
+    try {
+      const page = await ledger.readActivity(currentCampaign, {
+        before: historyCursor,
+      });
+      if (!mountedRef.current || epoch !== readEpochRef.current) return;
+      setActivity((previous) => [
+        ...new Map(
+          [...(previous ?? []), ...page.items].map((item) => [
+            item.signature,
+            item,
+          ]),
+        ).values(),
+      ]);
+      setHistoryCursor(page.nextBefore);
+      setHasMoreActivity(page.hasMore);
+    } catch (cause) {
+      if (mountedRef.current && epoch === readEpochRef.current)
+        setActivityError(errorMessage(cause));
+    } finally {
+      if (mountedRef.current && epoch === readEpochRef.current)
+        setLoadingActivity(false);
+    }
+  }
+
+  const visibleReceipts = receipts.filter(
+    (receipt) =>
+      !addresses || receipt.campaignAddress === addresses.campaignAddress,
+  );
   const yourCampaignExists = Boolean(
     campaign && selectedCreator === walletAddress,
   );
@@ -401,10 +516,17 @@ export function SolanaTest() {
           <span className="of-eyebrow">
             <ShieldCheck size={14} aria-hidden="true" /> Solana Devnet
           </span>
-          <h1 className="of-page-title">Test your OpenFunds campaign</h1>
+          <h1 className="of-page-title">
+            {projectView
+              ? "Campaign funding"
+              : createView
+                ? "Create your Devnet campaign"
+                : "Test your OpenFunds campaign"}
+          </h1>
           <p>
-            Connect Phantom, create a campaign and send a test contribution to
-            its program-controlled vault.
+            {projectView
+              ? "View the creator, sponsor contributions and confirmed movements for this shared campaign."
+              : "Connect Phantom, create a campaign and send a test contribution to its program-controlled vault."}
           </p>
         </div>
         <span className="chain-network">Test SOL only</span>
@@ -412,8 +534,9 @@ export function SolanaTest() {
 
       <div className="chain-note">
         Choose <strong>Solana Devnet</strong> in Phantom before signing. This
-        page always uses Devnet. Test SOL has no monetary value. Demo projects
-        and balances on the other pages are separate.
+        page always uses Devnet. Funds enter this campaign&apos;s vault. Sending
+        SOL directly to the creator&apos;s personal wallet does not record a
+        campaign contribution. Withdrawals are not implemented.
       </div>
 
       {(busy || error || notice) && (
@@ -485,8 +608,9 @@ export function SolanaTest() {
             <h2 id="wallet-heading">Connect your wallet</h2>
           </div>
           <p>
-            Use your creator account to create a campaign. For the contribution
-            check, switch to a separate backer account in Phantom.
+            {projectView
+              ? "Connect your sponsor or creator wallet. This page stays on the same campaign when you switch accounts."
+              : "Use your creator account to create a campaign. Sponsors open the creator's shared campaign link to contribute."}
           </p>
           {walletAddress ? (
             <>
@@ -503,6 +627,16 @@ export function SolanaTest() {
                     : `${formatSol(walletBalance)} SOL`}
                 </dd>
               </dl>
+              {walletReadError && (
+                <p className="chain-helper" role="alert">
+                  Wallet balance could not be read. {walletReadError}
+                </p>
+              )}
+              <p className="chain-helper">
+                {walletAddress === selectedCreator
+                  ? "You are the creator of this campaign."
+                  : "You are viewing this campaign as a sponsor. Your own campaign is separate."}
+              </p>
               <button
                 className="of-button secondary"
                 type="button"
@@ -552,49 +686,73 @@ export function SolanaTest() {
           </a>
         </section>
 
-        <section className="chain-panel" aria-labelledby="create-heading">
-          <div className="chain-step">
-            <span>2</span>
-            <h2 id="create-heading">Create your campaign</h2>
-          </div>
-          <p>
-            Campaign creation uses your connected Phantom wallet. The creator
-            address below is only used to find a campaign. A new campaign starts
-            with 0 SOL contributed and its own vault.
-          </p>
-          {walletAddress &&
-            creatorInput.trim() &&
-            creatorInput.trim() !== walletAddress && (
-              <p className="chain-helper">
-                To create a campaign for the creator entered below, connect that
-                creator&apos;s account in Phantom first.
-              </p>
-            )}
-          <button
-            className="of-button"
-            type="button"
-            onClick={createCampaign}
-            disabled={!canSign || yourCampaignExists}
+        {!projectView && (
+          <section className="chain-panel" aria-labelledby="create-heading">
+            <div className="chain-step">
+              <span>2</span>
+              <h2 id="create-heading">Create your campaign</h2>
+            </div>
+            <p>
+              Campaign creation uses your connected Phantom wallet. The creator
+              address below is only used to find a campaign. A new campaign
+              starts with 0 SOL contributed and its own vault.
+            </p>
+            {walletAddress &&
+              creatorInput.trim() &&
+              creatorInput.trim() !== walletAddress && (
+                <p className="chain-helper">
+                  To create a campaign for the creator entered below, connect
+                  that creator&apos;s account in Phantom first.
+                </p>
+              )}
+            <button
+              className="of-button"
+              type="button"
+              onClick={createCampaign}
+              disabled={!canSign || yourCampaignExists}
+            >
+              {yourCampaignExists
+                ? "Your campaign already exists"
+                : "Create campaign on Devnet"}
+            </button>
+            <p className="chain-helper">
+              This version supports one on-chain campaign per creator. Creating
+              it again with the same account is rejected by the program.
+            </p>
+            <p className="chain-helper">
+              Phantom shows the transaction for your approval. Your wallet pays
+              network fees and account storage rent in test SOL.
+            </p>
+          </section>
+        )}
+        {projectView && (
+          <section
+            className="chain-panel"
+            aria-labelledby="destination-heading"
           >
-            {yourCampaignExists
-              ? "Your campaign already exists"
-              : "Create campaign on Devnet"}
-          </button>
-          <p className="chain-helper">
-            This version supports one on-chain campaign per creator. Creating it
-            again with the same account is rejected by the program.
-          </p>
-          <p className="chain-helper">
-            Phantom shows the transaction for your approval. Your wallet pays
-            network fees and account storage rent in test SOL.
-          </p>
-        </section>
+            <h2 id="destination-heading">Where the funds go</h2>
+            <p>
+              Each contribution moves from the sponsor&apos;s wallet into this
+              campaign&apos;s program-controlled vault.
+            </p>
+            <p>
+              Campaign funding is separate from the creator&apos;s personal
+              wallet balance. Network fees and account storage are separate
+              costs.
+            </p>
+            <Link className="of-text-link" href="/dashboard">
+              View your startup and sponsorship dashboard
+            </Link>
+          </section>
+        )}
       </div>
 
       <section className="chain-panel" aria-labelledby="campaign-heading">
         <div className="chain-step">
           <span>3</span>
-          <h2 id="campaign-heading">Find the campaign</h2>
+          <h2 id="campaign-heading">
+            {projectView ? "This campaign" : "Find the campaign"}
+          </h2>
         </div>
         <p>
           Paste the creator&apos;s public Solana address. A backer uses this
@@ -606,6 +764,7 @@ export function SolanaTest() {
             <input
               id="chain-creator"
               value={creatorInput}
+              readOnly={projectView}
               onChange={(event) => setCreatorInput(event.target.value)}
               placeholder="Paste a public Solana address"
               autoComplete="off"
@@ -621,7 +780,7 @@ export function SolanaTest() {
           >
             Load campaign
           </button>
-          {walletAddress && (
+          {walletAddress && !projectView && (
             <button
               className="of-button secondary"
               type="button"
@@ -679,6 +838,20 @@ export function SolanaTest() {
           </div>
         )}
         {campaign && (
+          <p className="chain-share">
+            <Link
+              className="of-button secondary small"
+              href={`/projects/devnet/${campaign.creatorAddress}`}
+            >
+              Open shareable campaign page
+            </Link>
+            <span>
+              Send this page&apos;s link to your sponsor. Both devices read the
+              same Devnet accounts.
+            </span>
+          </p>
+        )}
+        {campaign && (
           <div className="chain-stat-grid">
             <div>
               <span>Campaign contributions</span>
@@ -715,9 +888,9 @@ export function SolanaTest() {
           <h2 id="contribute-heading">Contribute test SOL</h2>
         </div>
         <p>
-          Start with 0.01 SOL, equal to 10,000,000 lamports. Send it twice from
-          the same backer to check that the same Contribution PDA accumulates
-          both deposits.
+          {projectView || createView
+            ? "Choose how much test SOL to contribute. Confirm in Phantom; the contribution goes to this campaign's vault and appears in the shared activity below."
+            : "Start with 0.01 SOL, equal to 10,000,000 lamports. Send it twice from the same backer to check that the same Contribution PDA accumulates both deposits."}
         </p>
         <form className="chain-contribute" onSubmit={contribute}>
           <label className="of-field" htmlFor="chain-amount">
@@ -777,40 +950,55 @@ export function SolanaTest() {
             </p>
           </div>
         )}
-        <div className="chain-note chain-checklist">
-          <strong>For a fresh campaign and a fresh backer:</strong>
-          <ol>
-            <li>After creation: Campaign contributions = 0 SOL.</li>
-            <li>
-              After the first 0.01 SOL deposit: campaign and backer totals =
-              0.01 SOL.
-            </li>
-            <li>
-              After the second: both totals = 0.02 SOL; the Contribution PDA
-              stays the same.
-            </li>
-            <li>
-              Each deposit increases the vault by exactly 0.01 SOL, in addition
-              to its initial storage rent.
-            </li>
-          </ol>
-        </div>
+        {!projectView && !createView && (
+          <div className="chain-note chain-checklist">
+            <strong>For a fresh campaign and a fresh backer:</strong>
+            <ol>
+              <li>After creation: Campaign contributions = 0 SOL.</li>
+              <li>
+                After the first 0.01 SOL deposit: campaign and backer totals =
+                0.01 SOL.
+              </li>
+              <li>
+                After the second: both totals = 0.02 SOL; the Contribution PDA
+                stays the same.
+              </li>
+              <li>
+                Each deposit increases the vault by exactly 0.01 SOL, in
+                addition to its initial storage rent.
+              </li>
+            </ol>
+          </div>
+        )}
       </section>
 
+      {campaign && (
+        <CampaignLedger
+          creator={selectedCreator}
+          backers={backers}
+          backersError={backersError}
+          activity={activity}
+          activityError={activityError}
+          loading={loadingActivity}
+          hasMore={hasMoreActivity}
+          onMore={() => void loadOlderActivity()}
+        />
+      )}
+
       <section className="chain-panel" aria-labelledby="transactions-heading">
-        <h2 id="transactions-heading">Devnet transactions</h2>
+        <h2 id="transactions-heading">Recent wallet submissions</h2>
         <p>
-          Transactions submitted during this page visit appear here. Only
-          confirmed transactions count as successful. Open Explorer to check a
-          pending transaction.
+          Receipts from this browser session are shown here while you use the
+          wallet. The shared Campaign activity above is read from Devnet and
+          remains visible after reload.
         </p>
-        {receipts.length === 0 ? (
+        {visibleReceipts.length === 0 ? (
           <p className="chain-empty">
             No transaction receipt has been received in this session yet.
           </p>
         ) : (
           <ul className="chain-transactions">
-            {receipts.map((receipt) => (
+            {visibleReceipts.map((receipt) => (
               <li key={receipt.signature}>
                 <div className="chain-receipt-title">
                   <strong>{receipt.action}</strong>
@@ -846,9 +1034,9 @@ export function SolanaTest() {
         )}
       </section>
       <p className="chain-scope">
-        This chain test covers campaign creation and contributions. Project
+        This campaign uses real Devnet accounts and test SOL. Project
         descriptions, multiple campaigns per creator, milestone voting and fund
-        release are not implemented in this on-chain version.
+        release are not implemented in the deployed program.
       </p>
 
       <style jsx>{`
@@ -890,6 +1078,15 @@ export function SolanaTest() {
           padding: 17px 20px;
           border-radius: 12px;
           color: #24486f;
+        }
+        .chain-share {
+          display: flex;
+          gap: 14px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        .chain-share span {
+          font-size: 12px;
         }
         .chain-feedback {
           display: flex;

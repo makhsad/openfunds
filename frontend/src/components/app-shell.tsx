@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowUpRight, CircleHelp, FlaskConical, X } from "lucide-react";
 import { Brand } from "@/components/ui";
 import { useProjects } from "@/hooks/use-projects";
@@ -11,7 +11,16 @@ import type { DemoOutcome } from "@/types/crowdfunding";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const isDevnet = path === "/solana";
+  const params = useSearchParams();
+  const demo = params.get("mode") === "demo";
+  const isDevnet =
+    path === "/solana" ||
+    path.startsWith("/projects/devnet/") ||
+    (!demo && ["/", "/projects", "/create", "/dashboard"].includes(path));
+  const route = (href: string) =>
+    !isDevnet && ["/", "/projects", "/create", "/dashboard"].includes(href)
+      ? `${href}?mode=demo`
+      : href;
   const {
     state,
     pending,
@@ -59,7 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ].map(([href, label]) => (
               <Link
                 key={href}
-                href={href}
+                href={route(href)}
                 aria-current={path === href ? "page" : undefined}
               >
                 {label}
@@ -67,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           {isDevnet ? (
-            <Link className="of-button secondary" href="/projects">
+            <Link className="of-button secondary" href="/projects?mode=demo">
               Explore demo
             </Link>
           ) : (
@@ -114,10 +123,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <p>Good ideas deserve a fair start.</p>
           </div>
           <nav aria-label="Footer navigation">
-            <Link href="/projects">
+            <Link href={route("/projects")}>
               Explore projects <ArrowUpRight size={13} />
             </Link>
-            <Link href="/create">Start a project</Link>
+            <Link href={route("/create")}>Start a project</Link>
             <Link href="/demo">Original demo lab</Link>
             <Link href="/solana">Test with Phantom on Devnet</Link>
           </nav>

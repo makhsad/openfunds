@@ -37,7 +37,7 @@ export function ProjectsExplore() {
             Meet the builders turning good ideas into meaningful progress.
           </p>
         </div>
-        <Link className="of-button secondary" href="/create">
+        <Link className="of-button secondary" href="/create?mode=demo">
           Start a project ↗
         </Link>
       </div>

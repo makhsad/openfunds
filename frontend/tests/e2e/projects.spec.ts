@@ -42,7 +42,7 @@ async function contribute(page: Page, amount: string) {
 }
 
 async function createProject(page: Page, title: string) {
-  await page.goto("/create");
+  await page.goto("/create?mode=demo");
   await identity(page, "creator");
   await page.getByLabel("Project title", { exact: false }).fill(title);
   await page
@@ -134,7 +134,7 @@ async function noOverflow(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?mode=demo");
   await expect(page.getByLabel("Demo identity")).toBeEnabled();
 });
 
@@ -437,7 +437,7 @@ test("draft validation, browser-only media, dashboard links and creator permissi
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.goto("/create");
+  await page.goto("/create?mode=demo");
   await page
     .getByRole("button", { name: "Use Creator demo identity", exact: true })
     .click();
@@ -473,14 +473,14 @@ test("draft validation, browser-only media, dashboard links and creator permissi
   await expect(
     page.getByRole("img", { name: "Project logo preview", exact: true }),
   ).toBeVisible();
-  await page.goto("/projects");
+  await page.goto("/projects?mode=demo");
   await expect(
     page.getByRole("heading", {
       name: "Private draft acceptance",
       exact: true,
     }),
   ).toHaveCount(0);
-  await page.goto("/dashboard");
+  await page.goto("/dashboard?mode=demo");
   await expect(
     page.getByText("Private draft acceptance", { exact: true }),
   ).toBeVisible();
@@ -495,13 +495,13 @@ test("draft validation, browser-only media, dashboard links and creator permissi
     0,
   );
   await identity(page, "backer-a");
-  await page.goto("/dashboard");
+  await page.goto("/dashboard?mode=demo");
   await page.getByRole("tab", { name: /Supported Projects/ }).click();
   await expect(page.getByText("SolEdu", { exact: true }).first()).toBeVisible();
   await expect(
     page.locator("a[href='/projects/sol-edu#discussion']"),
   ).toBeVisible();
-  await page.goto("/create");
+  await page.goto("/create?mode=demo");
   await expect(
     page.getByRole("button", {
       name: "Use Creator demo identity",
@@ -597,6 +597,7 @@ test("all public routes, search, categories, keyboard navigation and responsive 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.reload();
+  await expect(page.getByLabel("Demo identity")).toBeEnabled();
   await page.keyboard.press("Tab");
   await expect(
     page.getByRole("link", { name: "Skip to content", exact: true }),
@@ -605,7 +606,7 @@ test("all public routes, search, categories, keyboard navigation and responsive 
     .getByRole("navigation", { name: "Main navigation", exact: true })
     .getByRole("link", { name: "Explore Projects", exact: true })
     .click();
-  await expect(page).toHaveURL("/projects");
+  await expect(page).toHaveURL("/projects?mode=demo");
   await page.getByLabel("Search projects", { exact: true }).fill("SolEdu");
   await expect(
     page.getByRole("heading", { name: "SolEdu", exact: true }),
@@ -631,11 +632,11 @@ test("all public routes, search, categories, keyboard navigation and responsive 
   ).toHaveCount(0);
   await identity(page, "creator");
   for (const [route, file] of [
-    ["/", "home"],
-    ["/projects", "explore"],
+    ["/?mode=demo", "home"],
+    ["/projects?mode=demo", "explore"],
     ["/projects/sol-edu", "project"],
-    ["/create", "create"],
-    ["/dashboard", "dashboard"],
+    ["/create?mode=demo", "create"],
+    ["/dashboard?mode=demo", "dashboard"],
   ]) {
     await page.goto(route);
     await expect(page.getByLabel("Demo identity")).toBeEnabled();

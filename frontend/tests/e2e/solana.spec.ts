@@ -4,6 +4,7 @@ import {
   address,
   getAddressEncoder,
   getBase58Decoder,
+  getBase58Encoder,
   getProgramDerivedAddress,
 } from "@solana/kit";
 import { Transaction } from "@solana/web3.js";
@@ -526,6 +527,47 @@ async function installDeployedWalletFixture(page: Page) {
           ),
         };
         break;
+      case "getProgramAccounts": {
+        expect(request.params[0]).toBe(OPENFUNDS_PROGRAM_ADDRESS);
+        const config = request.params[1];
+        expect(config.withContext).toBe(true);
+        expect(config.encoding).toBe("base64");
+        const rows = [...accounts.entries()]
+          .filter(([, account]) => account.owner === request.params[0])
+          .filter(([, account]) => {
+            const data = Buffer.from(account.data[0], "base64");
+            return config.filters.every(
+              (filter: {
+                dataSize?: number;
+                memcmp?: { offset: number; bytes: string };
+              }) => {
+                if (filter.dataSize !== undefined)
+                  return data.length === filter.dataSize;
+                if (filter.memcmp) {
+                  const expected = Buffer.from(
+                    getBase58Encoder().encode(filter.memcmp.bytes),
+                  );
+                  return data
+                    .subarray(
+                      filter.memcmp.offset,
+                      filter.memcmp.offset + expected.length,
+                    )
+                    .equals(expected);
+                }
+                throw new Error("Unexpected fixture account filter");
+              },
+            );
+          })
+          .map(([pubkey, account]) => ({ pubkey, account }));
+        result = { context: { slot: 10 }, value: rows };
+        break;
+      }
+      case "getSignaturesForAddress":
+        expect(request.params[0]).toBe(campaignAddress);
+        // This fixture models wallet submissions and current accounts only.
+        // Persistent chain history has independent coverage in real-devnet.spec.ts.
+        result = [];
+        break;
       case "getBalance":
         result = {
           context: { slot: 10 },
@@ -648,6 +690,15 @@ test("Phantom typed transactions create a campaign and accumulate two backer dep
     );
     await expect(chainStat(page, "Your contribution")).toHaveText(
       `${total} SOL`,
+    );
+    const backers = page.getByRole("region", { name: "Campaign backers" });
+    await expect(backers.getByRole("listitem")).toHaveCount(1);
+    await expect(
+      backers.getByRole("listitem", { name: `Backer ${fixture.backer}` }),
+    ).toContainText(`${total} SOL`);
+    await expect(backers.getByRole("link")).toHaveAttribute(
+      "href",
+      `https://explorer.solana.com/address/${fixture.backer}?cluster=devnet`,
     );
     await expect(contributionLink).toHaveAttribute("href", contributionHref);
     await expect(

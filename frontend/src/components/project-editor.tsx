@@ -127,7 +127,7 @@ export function ProjectEditor({ projectId }: { projectId?: string }) {
         <div className="of-empty">
           <h1>Project not found</h1>
           <p>This project may have been removed when demo data was reset.</p>
-          <Link className="of-button" href="/dashboard">
+          <Link className="of-button" href="/dashboard?mode=demo">
             Open dashboard
           </Link>
         </div>
@@ -159,7 +159,7 @@ export function ProjectEditor({ projectId }: { projectId?: string }) {
               Use Creator demo identity
             </button>
           )}
-          <Link className="of-button secondary" href="/projects">
+          <Link className="of-button secondary" href="/projects?mode=demo">
             Explore projects
           </Link>
         </div>
@@ -349,7 +349,7 @@ function EditorForm({ project }: { project?: Project }) {
   }
   return (
     <section className="of-container of-page editor-page">
-      <Link href="/dashboard" className="editor-back">
+      <Link href="/dashboard?mode=demo" className="editor-back">
         <ArrowLeft size={15} aria-hidden="true" /> My dashboard
       </Link>
       <div className="editor-heading">
