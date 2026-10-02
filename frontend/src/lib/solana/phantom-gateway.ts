@@ -21,7 +21,7 @@ import {
 import type { SolanaCampaignGateway } from "./campaign-boundary";
 
 export const OPENFUNDS_PROGRAM_ADDRESS =
-  "6NTwPcQMGArcmjStAfica2toF3qqwSD1nsEw2qc1RRHA";
+  "Hcy7KiWQE1VfWE8LieGUSq8yAeL1AZEMqjKhDjomc7Fe";
 export const DEVNET_GENESIS_HASH =
   "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 export const DEVNET_PROXY_PATH = "/api/solana/devnet";

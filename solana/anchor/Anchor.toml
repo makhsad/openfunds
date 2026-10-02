@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-openfunds = "6NTwPcQMGArcmjStAfica2toF3qqwSD1nsEw2qc1RRHA"
+openfunds = "Hcy7KiWQE1VfWE8LieGUSq8yAeL1AZEMqjKhDjomc7Fe"
 
 [programs.devnet]
-openfunds = "6NTwPcQMGArcmjStAfica2toF3qqwSD1nsEw2qc1RRHA"
+openfunds = "Hcy7KiWQE1VfWE8LieGUSq8yAeL1AZEMqjKhDjomc7Fe"
 
 [provider]
 cluster = "localnet"

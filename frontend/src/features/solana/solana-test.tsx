@@ -161,6 +161,9 @@ export function SolanaTest() {
       provider: provider ?? undefined,
     });
     gatewayRef.current = gateway;
+    const connectedAddress = gateway.connectedAddress;
+    setWalletAddress(connectedAddress);
+    setCreatorInput(connectedAddress ?? "");
     const unsubscribe = gateway.onWalletChange((address) => {
       readEpochRef.current += 1;
       setWalletAddress(address);
@@ -177,7 +180,7 @@ export function SolanaTest() {
         );
       }
     });
-    void loadChain("");
+    void loadChain(connectedAddress ?? "");
     return () => {
       mountedRef.current = false;
       readEpochRef.current += 1;

@@ -115,3 +115,61 @@ test("Phantom public connection reads test SOL while undeployed program cannot r
     page.getByRole("button", { name: "Connect Phantom", exact: true }),
   ).toBeEnabled();
 });
+
+test("An already-connected Phantom wallet is restored when the page opens or reloads", async ({
+  page,
+}) => {
+  await page.addInitScript((publicAddress) => {
+    const provider = {
+      isPhantom: true,
+      isConnected: true,
+      publicKey: { toString: () => publicAddress },
+      async connect() {
+        throw new Error(
+          "An existing connection must not request another wallet connection",
+        );
+      },
+      async disconnect() {
+        this.isConnected = false;
+      },
+      async request() {
+        throw new Error("An undeployed program must not request a signature");
+      },
+    };
+    Object.defineProperty(window, "phantom", { value: { solana: provider } });
+  }, TEST_PUBLIC_ADDRESS);
+  await page.route("**/api/solana/devnet", async (route) => {
+    const request = route.request().postDataJSON();
+    const result =
+      request.method === "getGenesisHash"
+        ? DEVNET_GENESIS
+        : request.method === "getBalance"
+          ? { context: { slot: 1 }, value: 5_500_000_000 }
+          : { context: { slot: 1 }, value: null };
+    await route.fulfill({ json: { jsonrpc: "2.0", id: request.id, result } });
+  });
+
+  await page.goto("/solana");
+  await expect(
+    page.getByText("Phantom connected", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Phantom", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("Campaign creator's public address"),
+  ).toHaveValue(TEST_PUBLIC_ADDRESS);
+  await expect(
+    page.getByRole("button", { name: "Disconnect Phantom", exact: true }),
+  ).toBeEnabled();
+
+  await page.reload();
+  await expect(
+    page.getByText("Phantom connected", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Phantom", exact: true }),
+  ).toHaveCount(0);
+});
