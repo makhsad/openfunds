@@ -45,7 +45,9 @@ export interface PhantomProvider {
   readonly isPhantom: boolean;
   readonly isConnected?: boolean;
   readonly publicKey: PhantomPublicKey | null;
-  connect(): Promise<{ publicKey: PhantomPublicKey }>;
+  connect(options?: {
+    onlyIfTrusted?: boolean;
+  }): Promise<{ publicKey: PhantomPublicKey }>;
   disconnect(): Promise<void>;
   signAndSendTransaction(
     transaction: Transaction,
@@ -218,7 +220,13 @@ function checkedAccount(
     throw new Error(`The ${name} account is not owned by OpenFunds.`);
   const data = accountData(account);
   if (
-    data.length !== size ||
+    !(
+      data.length === size ||
+      (name === "campaign" &&
+        size === 48 &&
+        data.length === 49 &&
+        data[48] === 1)
+    ) ||
     !ANCHOR_DISCRIMINATORS[name].every((value, index) => data[index] === value)
   )
     throw new Error(`The ${name} account has an invalid Anchor layout.`);
@@ -326,6 +334,25 @@ export class PhantomCampaignGateway implements SolanaCampaignGateway {
     const publicAddress = address(result.publicKey.toString());
     this.updateWallet(publicAddress);
     return publicAddress;
+  }
+
+  async reconnectTrusted(): Promise<string | null> {
+    if (!this.provider?.isPhantom) return null;
+    const result = await this.provider.connect({ onlyIfTrusted: true });
+    const publicAddress = address(result.publicKey.toString());
+    this.updateWallet(publicAddress);
+    return publicAddress;
+  }
+
+  /** Reuse the same signer checks, serializer and confirmation for project actions. */
+  async sendInstruction(ix: Instruction): Promise<string> {
+    return this.mutate(async (wallet) => {
+      const readiness = await this.inspectProgram();
+      if (!readiness.deployed) throw new Error(readiness.reason!);
+      if (ix.programAddress !== this.programAddress)
+        throw new Error("Unexpected project program address.");
+      return this.send(ix, wallet);
+    });
   }
 
   async disconnect(): Promise<void> {
@@ -560,6 +587,17 @@ export class PhantomCampaignGateway implements SolanaCampaignGateway {
       const readiness = await this.inspectProgram();
       if (!readiness.deployed) throw new Error(readiness.reason!);
       const current = await this.readCampaign(campaignAddress);
+      const { value: campaignAccount } = await this.rpc.call<{
+        value: RpcAccount | null;
+      }>("getAccountInfo", [
+        campaignAddress,
+        { encoding: "base64", commitment: "confirmed" },
+      ]);
+      const campaignBytes = checkedAccount(campaignAccount, "campaign", 48);
+      if (campaignBytes.length === 49)
+        throw new Error(
+          "This project is closed and no longer accepts contributions.",
+        );
       if (
         BigInt(current.totalContributedLamports) + amount > U64_MAX ||
         BigInt(current.contributionLamports) + amount > U64_MAX

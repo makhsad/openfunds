@@ -1,4 +1,5 @@
-import { CampaignPage } from "@/components/campaign-page";
-export default function DemoLabPage() {
-  return <CampaignPage />;
+import { redirect } from "next/navigation";
+
+export default function DemoPage() {
+  redirect("/projects");
 }

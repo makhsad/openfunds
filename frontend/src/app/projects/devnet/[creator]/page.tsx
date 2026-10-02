@@ -1,17 +1,20 @@
-import type { Metadata } from "next";
-import { SolanaTest } from "@/features/solana/solana-test";
+import { redirect } from "next/navigation";
+import { deriveCampaignAddresses } from "@/lib/solana/phantom-gateway";
 
-export const metadata: Metadata = {
-  title: "OpenFunds | Devnet campaign",
-  description:
-    "Read this OpenFunds campaign, contribution history and vault balance on Solana Devnet.",
-};
-
-export default async function DevnetCampaignPage({
+/** Preserve existing shared links while using the single project experience. */
+export default async function LegacyCampaignLink({
   params,
 }: {
   params: Promise<{ creator: string }>;
 }) {
   const { creator } = await params;
-  return <SolanaTest initialCreator={creator} projectView />;
+  try {
+    const { campaignAddress } = await deriveCampaignAddresses(creator);
+    redirect("/projects/" + campaignAddress);
+  } catch (cause) {
+    // Next's redirect is a control-flow exception; preserve it.
+    if (typeof cause === "object" && cause !== null && "digest" in cause)
+      throw cause;
+    redirect("/projects");
+  }
 }

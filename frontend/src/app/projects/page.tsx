@@ -1,15 +1,5 @@
-import { ProjectsExplore } from "@/components/projects-explore";
-import { DevnetOverview } from "@/features/solana/devnet-overview";
+import { PlatformCatalog } from "@/features/platform/platform-pages";
 
-export default async function ExplorePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mode?: string }>;
-}) {
-  const { mode } = await searchParams;
-  return mode === "demo" ? (
-    <ProjectsExplore />
-  ) : (
-    <DevnetOverview mode="catalog" />
-  );
+export default function ProjectsPage() {
+  return <PlatformCatalog />;
 }

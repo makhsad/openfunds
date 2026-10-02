@@ -121,7 +121,11 @@ async function fixture() {
         assert.equal(config.withContext, true);
         assert.equal(config.encoding, "base64");
         const size = config.filters.find((filter) => filter.dataSize)?.dataSize;
-        let rows = size === 48 ? campaigns : contributions;
+        let rows = (
+          size === 48 || size === 49 ? campaigns : contributions
+        ).filter(
+          (row) => Buffer.from(row.account.data[0], "base64").length === size,
+        );
         const identity = config.filters.find(
           (filter) => filter.memcmp && filter.memcmp.offset !== 0,
         )?.memcmp;
@@ -375,7 +379,9 @@ test("campaign catalogue rejects substituted PDAs, discriminator/layout corrupti
       row.account.executable = true;
     },
     (row: Row) => {
-      row.account = account("contribution", [other, creator]);
+      const data = Buffer.from(row.account.data[0], "base64");
+      data.set(ANCHOR_DISCRIMINATORS.contribution, 0);
+      row.account.data = [data.toString("base64"), "base64"];
     },
   ]) {
     const f = await fixture();

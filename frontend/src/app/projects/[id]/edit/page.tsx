@@ -1,4 +1,4 @@
-import { ProjectEditor } from "@/components/project-editor";
+import { PlatformEdit } from "@/features/platform/platform-pages";
 
 export default async function EditProjectPage({
   params,
@@ -6,5 +6,5 @@ export default async function EditProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ProjectEditor projectId={id} />;
+  return <PlatformEdit campaignAddress={id} />;
 }

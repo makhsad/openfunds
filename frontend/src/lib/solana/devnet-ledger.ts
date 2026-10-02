@@ -120,7 +120,13 @@ function bytes(
     throw new Error(`The ${name} account has unsupported data.`);
   const data = new Uint8Array(getBase64Encoder().encode(account.data[0]));
   if (
-    data.length !== size ||
+    !(
+      data.length === size ||
+      (name === "campaign" &&
+        size === 48 &&
+        data.length === 49 &&
+        data[48] === 1)
+    ) ||
     !ANCHOR_DISCRIMINATORS[name].every((byte, index) => data[index] === byte)
   )
     throw new Error(`The ${name} account has an invalid Anchor layout.`);
@@ -177,22 +183,25 @@ export class DevnetLedger {
 
   async listCampaigns(): Promise<DevnetCampaign[]> {
     await this.checkNetwork();
-    const response = await this.rpc.call<{ value: ProgramAccount[] }>(
-      "getProgramAccounts",
-      [
-        OPENFUNDS_PROGRAM_ADDRESS,
-        {
-          encoding: "base64",
-          commitment: "confirmed",
-          withContext: true,
-          filters: [
-            { dataSize: 48 },
-            { memcmp: { offset: 0, bytes: discriminator("campaign") } },
-          ],
-        },
-      ],
+    const responses = await Promise.all(
+      [48, 49].map((dataSize) =>
+        this.rpc.call<{ value: ProgramAccount[] }>("getProgramAccounts", [
+          OPENFUNDS_PROGRAM_ADDRESS,
+          {
+            encoding: "base64",
+            commitment: "confirmed",
+            withContext: true,
+            filters: [
+              { dataSize },
+              { memcmp: { offset: 0, bytes: discriminator("campaign") } },
+            ],
+          },
+        ]),
+      ),
     );
-    const rows = response.value;
+    if (responses.some((response) => !Array.isArray(response.value)))
+      throw new Error("Devnet returned an invalid campaign catalogue.");
+    const rows = responses.flatMap((response) => response.value);
     if (!Array.isArray(rows) || rows.length > MAX_CAMPAIGNS)
       throw new Error(
         "The Devnet campaign catalogue exceeds the supported size.",

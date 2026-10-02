@@ -1,114 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowUpRight, CircleHelp, FlaskConical, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowUpRight, FlaskConical, Globe2 } from "lucide-react";
 import { Brand } from "@/components/ui";
-import { useProjects } from "@/hooks/use-projects";
-import { DEMO_IDENTITIES } from "@/types/project";
-import type { DemoIdentityId } from "@/types/project";
-import type { DemoOutcome } from "@/types/crowdfunding";
+import { usePlatform } from "@/features/platform/platform-provider";
+import { WalletControl } from "@/features/platform/wallet-control";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const params = useSearchParams();
-  const demo = params.get("mode") === "demo";
-  const isDevnet =
-    path === "/solana" ||
-    path.startsWith("/projects/devnet/") ||
-    (!demo && ["/", "/projects", "/create", "/dashboard"].includes(path));
-  const route = (href: string) =>
-    !isDevnet && ["/", "/projects", "/create", "/dashboard"].includes(href)
-      ? `${href}?mode=demo`
-      : href;
-  const {
-    state,
-    pending,
-    error,
-    notice,
-    outcome,
-    setOutcome,
-    cancel,
-    setIdentity,
-    resetDemo,
-  } = useProjects();
-  if (path === "/demo") return children;
+  const { text, locale, setLocale } = usePlatform();
   return (
-    <div className="of-app">
+    <div className="of-app" translate="no">
       <a className="skip-link" href="#main-content">
-        Skip to content
+        {text("Перейти к содержимому", "Skip to content")}
       </a>
-      <div
-        className="of-demo-banner"
-        role="region"
-        aria-label={isDevnet ? "Solana Devnet" : "Demo mode"}
-      >
+      <div className="of-demo-banner" role="region" aria-label="Solana Devnet">
         <span className="of-container">
           <FlaskConical size={14} aria-hidden="true" />
-          <strong>{isDevnet ? "Solana Devnet" : "Demo workspace"}</strong>
+          <strong>
+            {text("Демонстрация · Solana Devnet", "Demo · Solana Devnet")}
+          </strong>
           <span>
-            {isDevnet
-              ? "Test SOL · Confirm transactions in Phantom."
-              : "Explore the experience. Balances, votes and releases are simulated."}
+            {text(
+              "Тестовые SOL. Подтверждайте операции в Phantom.",
+              "Test SOL. Confirm transactions in Phantom.",
+            )}
           </span>
         </span>
       </div>
       <header className="of-header">
         <div className="of-container of-navbar">
-          <Link className="of-brand-link" href="/" aria-label="OpenFunds home">
+          <Link
+            className="of-brand-link"
+            href="/"
+            aria-label={text("Главная OpenFunds", "OpenFunds home")}
+          >
             <Brand />
           </Link>
-          <nav aria-label="Main navigation">
+          <nav aria-label={text("Основная навигация", "Main navigation")}>
             {[
-              ["/projects", "Explore Projects"],
-              ["/create", "Create Project"],
-              ["/dashboard", "Dashboard"],
-              ["/solana", "Devnet"],
-              ["/#how-it-works", "How It Works"],
+              ["/projects", text("Проекты", "Projects")],
+              ["/create", text("Создать проект", "Create project")],
+              ["/dashboard", text("Мой кабинет", "Dashboard")],
+              ["/#how-it-works", text("Как это работает", "How it works")],
             ].map(([href, label]) => (
               <Link
                 key={href}
-                href={route(href)}
+                href={href}
                 aria-current={path === href ? "page" : undefined}
               >
-                {label}
+                <span>{label}</span>
               </Link>
             ))}
           </nav>
-          {isDevnet ? (
-            <Link className="of-button secondary" href="/projects?mode=demo">
-              Explore demo
-            </Link>
-          ) : (
-            <div className="of-identity">
-              <span className="of-avatar">
-                {state?.identityId === "creator"
-                  ? "CR"
-                  : state?.identityId === "backer-a"
-                    ? "BA"
-                    : state?.identityId === "backer-b"
-                      ? "BB"
-                      : "V"}
-              </span>
-              <label>
-                <span>DEMO IDENTITY</span>
-                <select
-                  aria-label="Demo identity"
-                  disabled={!state || pending}
-                  value={state?.identityId ?? "visitor"}
-                  onChange={(event) =>
-                    setIdentity(event.target.value as DemoIdentityId)
-                  }
-                >
-                  {DEMO_IDENTITIES.map((identity) => (
-                    <option key={identity.id} value={identity.id}>
-                      {identity.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
+          <div className="of-header-actions">
+            <label className="of-language-select">
+              <Globe2 size={15} aria-hidden="true" />
+              <select
+                aria-label={text("Язык сайта", "Site language")}
+                value={locale}
+                onChange={(event) =>
+                  setLocale(event.target.value === "en" ? "en" : "ru")
+                }
+              >
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <WalletControl />
+          </div>
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
@@ -117,88 +78,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <footer className="of-footer">
         <div className="of-container of-footer-main">
           <div>
-            <Link href="/" aria-label="OpenFunds home">
+            <Link
+              href="/"
+              aria-label={text("Главная OpenFunds", "OpenFunds home")}
+            >
               <Brand />
             </Link>
-            <p>Good ideas deserve a fair start.</p>
+            <p>
+              {text(
+                "Хорошие идеи заслуживают поддержки.",
+                "Good ideas deserve support.",
+              )}
+            </p>
           </div>
-          <nav aria-label="Footer navigation">
-            <Link href={route("/projects")}>
-              Explore projects <ArrowUpRight size={13} />
+          <nav
+            aria-label={text("Навигация внизу страницы", "Footer navigation")}
+          >
+            <Link href="/projects">
+              {text("Найти проект", "Explore projects")}
+              <ArrowUpRight size={13} />
             </Link>
-            <Link href={route("/create")}>Start a project</Link>
-            <Link href="/demo">Original demo lab</Link>
-            <Link href="/solana">Test with Phantom on Devnet</Link>
+            <Link href="/create">
+              {text("Создать проект", "Start a project")}
+            </Link>
+            <Link href="/dashboard">
+              {text("Мои взносы и проекты", "My support and projects")}
+            </Link>
           </nav>
           <div className="of-footer-note">
-            <strong>Built for a more accountable future.</strong>
+            <strong>
+              {text(
+                "Один сайт. Общие проекты и прозрачные взносы.",
+                "One site. Shared projects and transparent contributions.",
+              )}
+            </strong>
             <p>
-              {isDevnet
-                ? "Devnet test SOL · Confirm each transaction in Phantom."
-                : "Local demo · No real SOL moves."}
-              <br />
-              {isDevnet
-                ? "Campaign creation and contributions only."
-                : "Use the Devnet page to connect your wallet."}
+              {text(
+                "Средства хранятся в хранилище проекта. При закрытии — возврат спонсорам.",
+                "Funds stay in the project vault. Closing enables sponsor refunds.",
+              )}
             </p>
           </div>
         </div>
         <div className="of-container of-footer-bottom">
-          <span>OpenFunds · Hackathon preview</span>
-          {!isDevnet && (
-            <details className="of-demo-settings">
-              <summary>
-                <CircleHelp size={14} /> Demo controls
-              </summary>
-              <div>
-                <label>
-                  Next operation
-                  <select
-                    aria-label="Next demo operation"
-                    value={outcome}
-                    disabled={pending}
-                    onChange={(event) =>
-                      setOutcome(event.target.value as DemoOutcome)
-                    }
-                  >
-                    <option value="success">Success</option>
-                    <option value="error">Fail</option>
-                    <option value="cancel">Cancel</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="of-button secondary"
-                  disabled={pending}
-                  onClick={resetDemo}
-                >
-                  Reset Demo Data
-                </button>
-                <p>Reset removes projects and changes saved in this browser.</p>
-              </div>
-            </details>
-          )}
+          <span>OpenFunds · Solana Devnet</span>
+          <span>{text("Только тестовые SOL", "Test SOL only")}</span>
         </div>
       </footer>
-      {!isDevnet && (pending || error || notice) && (
-        <div
-          className={`of-notification ${error ? "error" : ""}`}
-          role={error ? "alert" : "status"}
-        >
-          <span>
-            {pending ? "Processing your demo operation…" : (error ?? notice)}
-          </span>
-          {pending && (
-            <button
-              type="button"
-              aria-label="Cancel demo operation"
-              onClick={cancel}
-            >
-              <X size={15} /> Cancel
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

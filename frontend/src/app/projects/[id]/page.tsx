@@ -1,9 +1,10 @@
-import { ProjectDetail } from "@/components/project-detail";
+import { PlatformProject } from "@/features/platform/platform-pages";
+
 export default async function ProjectPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ProjectDetail key={id} id={id} />;
+  return <PlatformProject key={id} campaignAddress={id} />;
 }

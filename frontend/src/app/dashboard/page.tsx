@@ -1,15 +1,5 @@
-import { ProjectDashboard } from "@/components/project-dashboard";
-import { DevnetOverview } from "@/features/solana/devnet-overview";
+import { PlatformDashboard } from "@/features/platform/platform-pages";
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mode?: string }>;
-}) {
-  const { mode } = await searchParams;
-  return mode === "demo" ? (
-    <ProjectDashboard />
-  ) : (
-    <DevnetOverview mode="dashboard" />
-  );
+export default function DashboardPage() {
+  return <PlatformDashboard />;
 }

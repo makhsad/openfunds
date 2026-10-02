@@ -9,6 +9,7 @@ import {
   ANCHOR_DISCRIMINATORS,
   OPENFUNDS_PROGRAM_ADDRESS,
 } from "./phantom-gateway";
+import { PROJECT_DISCRIMINATORS } from "./project-ledger";
 export const DEVNET_RPC_URL = "https://api.devnet.solana.com";
 
 const METHODS = new Set([
@@ -98,18 +99,61 @@ function boundedRead(method: string, params: readonly unknown[]): boolean {
   )
     return false;
   const filters = config.filters.map(record);
-  const size = filters.find(
+  const sizeFilters = filters.filter(
     (filter) =>
       filter &&
       Object.keys(filter).length === 1 &&
-      (filter.dataSize === 48 || filter.dataSize === 80),
-  )?.dataSize;
-  if (size !== 48 && size !== 80) return false;
-  const discriminator = getBase58Decoder().decode(
-    new Uint8Array(
-      ANCHOR_DISCRIMINATORS[size === 48 ? "campaign" : "contribution"],
-    ),
+      typeof filter.dataSize === "number",
   );
+  const discriminatorFilters = filters.filter(
+    (filter) => record(filter?.memcmp)?.offset === 0,
+  );
+  if (sizeFilters.length !== 1 || discriminatorFilters.length !== 1)
+    return false;
+  const size = sizeFilters[0]!.dataSize;
+  const expected = [
+    {
+      size: 48,
+      discriminator: ANCHOR_DISCRIMINATORS.campaign,
+      identityOffsets: [],
+    },
+    {
+      size: 49,
+      discriminator: ANCHOR_DISCRIMINATORS.campaign,
+      identityOffsets: [],
+    },
+    {
+      size: 80,
+      discriminator: ANCHOR_DISCRIMINATORS.contribution,
+      identityOffsets: [8, 40],
+    },
+    {
+      size: 789,
+      discriminator: PROJECT_DISCRIMINATORS.campaign,
+      identityOffsets: [],
+    },
+    {
+      size: 88,
+      discriminator: PROJECT_DISCRIMINATORS.contribution,
+      identityOffsets: [8, 40],
+    },
+    {
+      size: 332,
+      discriminator: PROJECT_DISCRIMINATORS.message,
+      identityOffsets: [8],
+    },
+    {
+      size: 80,
+      discriminator: PROJECT_DISCRIMINATORS.legacyReceipt,
+      identityOffsets: [8, 40],
+    },
+  ].find(
+    (schema) =>
+      schema.size === size &&
+      record(discriminatorFilters[0]?.memcmp)?.bytes ===
+        getBase58Decoder().decode(Uint8Array.from(schema.discriminator)),
+  );
+  if (!expected) return false;
   let hasSize = false;
   let hasDiscriminator = false;
   let hasIdentity = false;
@@ -125,17 +169,12 @@ function boundedRead(method: string, params: readonly unknown[]): boolean {
       !Object.keys(memcmp).every((key) => ["offset", "bytes"].includes(key))
     )
       return false;
-    if (
-      memcmp.offset === 0 &&
-      memcmp.bytes === discriminator &&
-      !hasDiscriminator
-    ) {
+    if (memcmp.offset === 0 && !hasDiscriminator) {
       hasDiscriminator = true;
       continue;
     }
     if (
-      size === 80 &&
-      (memcmp.offset === 8 || memcmp.offset === 40) &&
+      expected.identityOffsets.includes(memcmp.offset as number) &&
       publicAddress(memcmp.bytes) &&
       !hasIdentity
     ) {
@@ -147,7 +186,9 @@ function boundedRead(method: string, params: readonly unknown[]): boolean {
   return (
     hasSize &&
     hasDiscriminator &&
-    (size === 48 ? filters.length === 2 : filters.length === 3 && hasIdentity)
+    (expected.identityOffsets.length === 0
+      ? filters.length === 2
+      : filters.length === 3 && hasIdentity)
   );
 }
 

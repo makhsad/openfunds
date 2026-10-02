@@ -116,7 +116,9 @@ test("Phantom public connection reads test SOL while undeployed program cannot r
   await expect(
     page.getByText("Phantom connected", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main").getByText("5.5 SOL", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", {
       name: "Create campaign on Devnet",
@@ -172,7 +174,9 @@ test("An already-connected Phantom wallet is restored when the page opens or rel
   await expect(
     page.getByText("Phantom connected", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main").getByText("5.5 SOL", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Connect Phantom", exact: true }),
   ).toHaveCount(0);
@@ -187,7 +191,9 @@ test("An already-connected Phantom wallet is restored when the page opens or rel
   await expect(
     page.getByText("Phantom connected", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main").getByText("5.5 SOL", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Connect Phantom", exact: true }),
   ).toHaveCount(0);
@@ -645,7 +651,9 @@ test("Phantom typed transactions create a campaign and accumulate two backer dep
   await page
     .getByRole("button", { name: "Connect Phantom", exact: true })
     .click();
-  await expect(page.getByText("5.5 SOL", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("main").getByText("5.5 SOL", { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Create campaign on Devnet", exact: true })
     .click();

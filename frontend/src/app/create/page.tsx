@@ -1,11 +1,5 @@
-import { ProjectEditor } from "@/components/project-editor";
-import { SolanaTest } from "@/features/solana/solana-test";
+import { PlatformCreate } from "@/features/platform/platform-pages";
 
-export default async function CreatePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mode?: string }>;
-}) {
-  const { mode } = await searchParams;
-  return mode === "demo" ? <ProjectEditor /> : <SolanaTest createView />;
+export default function CreatePage() {
+  return <PlatformCreate />;
 }
