@@ -15,21 +15,20 @@ test("exact repeated contributions use the same backer account and appear on bot
   await fixture.attach(page, SPONSOR_A);
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await expect(page.getByRole("heading", { name: TITLE })).toBeVisible();
-  await page.getByLabel("Ваш взнос, тестовые SOL").fill("0.01");
+  await page.getByLabel("Your contribution, test SOL").fill("0.01");
   await page
-    .getByRole("button", { name: "Поддержать проект", exact: true })
+    .getByRole("button", { name: "Support project", exact: true })
     .click();
   await expect(
-    page.getByText(
-      "Взнос подтверждён. Средства поступили в хранилище проекта.",
-      { exact: true },
-    ),
+    page.getByText("Contribution confirmed. Funds reached the project vault.", {
+      exact: true,
+    }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Поддержать проект", exact: true })
+    .getByRole("button", { name: "Support project", exact: true })
     .click();
   await expect(
-    page.getByText("Ваш вклад: 0.02 SOL", { exact: true }),
+    page.getByText("Your contribution: 0.02 SOL", { exact: true }),
   ).toBeVisible();
   expect(fixture.projects.get(fixture.first.campaignAddress)?.raised).toBe(
     20_000_000n,
@@ -48,8 +47,10 @@ test("exact repeated contributions use the same backer account and appear on bot
   await expect(
     author.getByText("0.02 SOL", { exact: true }).first(),
   ).toBeVisible();
-  await author.getByRole("tab", { name: "Операции", exact: true }).click();
-  await expect(author.getByText("Взнос", { exact: true })).toHaveCount(2);
+  await author.getByRole("tab", { name: "Activity", exact: true }).click();
+  await expect(author.getByText("Contribution", { exact: true })).toHaveCount(
+    2,
+  );
   await context.close();
 });
 
@@ -59,24 +60,23 @@ test("zero and cancelled transactions do not change totals", async ({
   const fixture = await createPlatformFixture();
   await fixture.attach(page, SPONSOR_A);
   await page.goto("/projects/" + fixture.first.campaignAddress);
-  await page.getByLabel("Ваш взнос, тестовые SOL").fill("0");
+  await page.getByLabel("Your contribution, test SOL").fill("0");
   await page
-    .getByRole("button", { name: "Поддержать проект", exact: true })
+    .getByRole("button", { name: "Support project", exact: true })
     .click();
-  await expect(page.getByText(/Введите сумму больше 0/)).toBeVisible();
+  await expect(page.getByText(/Enter an amount greater than 0/)).toBeVisible();
   expect(fixture.submissions).toEqual([]);
-  await page.getByLabel("Ваш взнос, тестовые SOL").fill("0.1");
+  await page.getByLabel("Your contribution, test SOL").fill("0.1");
   await fixture.outcomes(page, ["cancel"]);
   await page
-    .getByRole("button", { name: "Поддержать проект", exact: true })
+    .getByRole("button", { name: "Support project", exact: true })
     .click();
   await expect(page.locator("main").getByRole("alert")).toBeVisible();
   expect(fixture.projects.get(fixture.first.campaignAddress)?.raised).toBe(0n);
   await expect(
-    page.getByText(
-      "Взнос подтверждён. Средства поступили в хранилище проекта.",
-      { exact: true },
-    ),
+    page.getByText("Contribution confirmed. Funds reached the project vault.", {
+      exact: true,
+    }),
   ).toHaveCount(0);
 });
 
@@ -88,23 +88,24 @@ test("unconfirmed submitted transaction retains Explorer link without success", 
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await fixture.outcomes(page, ["pending"]);
   await page
-    .getByRole("button", { name: "Поддержать проект", exact: true })
+    .getByRole("button", { name: "Support project", exact: true })
     .click();
   await expect(
-    page.getByText(/Транзакция отправлена, но подтверждение ещё не получено/),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Посмотреть транзакцию", exact: true }),
-  ).toBeVisible();
-  await expect(
     page.getByText(
-      "Взнос подтверждён. Средства поступили в хранилище проекта.",
-      { exact: true },
+      /The transaction was submitted but has not been confirmed yet/,
     ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "View transaction", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Contribution confirmed. Funds reached the project vault.", {
+      exact: true,
+    }),
   ).toHaveCount(0);
   expect(fixture.projects.get(fixture.first.campaignAddress)?.raised).toBe(0n);
   await expect(
-    page.getByRole("button", { name: "Поддержать проект", exact: true }),
+    page.getByRole("button", { name: "Support project", exact: true }),
   ).toBeDisabled();
 });
 
@@ -118,11 +119,11 @@ test("creator refund batch stops on a real Phantom accountChanged event and resu
   // accounts before the client could request approval for the second refund.
   await fixture.switchAfterSignedTransactions(page, 2, SPONSOR_B);
   await page
-    .getByRole("button", { name: "Закрыть проект и вернуть средства" })
+    .getByRole("button", { name: "Close project and refund funds" })
     .click();
-  await page.getByRole("button", { name: "Да, закрыть сбор" }).click();
+  await page.getByRole("button", { name: "Yes, close funding" }).click();
   await expect(
-    page.getByText("Ваш вклад: 0.2 SOL", { exact: true }),
+    page.getByText("Your contribution: 0.2 SOL", { exact: true }),
   ).toBeVisible();
   expect(fixture.submissions.map((row) => row.kind)).toEqual([
     "close",
@@ -135,16 +136,24 @@ test("creator refund batch stops on a real Phantom accountChanged event and resu
   expect(partial).toBeGreaterThan(0n);
   expect(partial).toBeLessThan(300_000_000n);
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toHaveCount(0);
   await fixture.switchAccount(page, CREATOR);
-  await page.getByRole("button", { name: "Вернуть оставшиеся взносы" }).click();
+  await page
+    .getByRole("button", { name: "Refund remaining contributions" })
+    .click();
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   const all = fixture.submissions.filter((row) => row.kind === "refund");
   expect(all).toHaveLength(2);
@@ -160,14 +169,14 @@ test("partial backer RPC results cannot report all refunds complete while campai
   await fixture.attach(page);
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await page
-    .getByRole("button", { name: "Закрыть проект и вернуть средства" })
+    .getByRole("button", { name: "Close project and refund funds" })
     .click();
-  await page.getByRole("button", { name: "Да, закрыть сбор" }).click();
+  await page.getByRole("button", { name: "Yes, close funding" }).click();
   await expect(
     page
       .locator("main")
       .getByRole("alert")
-      .filter({ hasText: /Возвраты ещё не завершены/ }),
+      .filter({ hasText: /Refunds are not complete yet/ }),
   ).toBeVisible();
   expect(fixture.projects.get(fixture.first.campaignAddress)?.refunded).toBe(
     100_000_000n,
@@ -176,16 +185,24 @@ test("partial backer RPC results cannot report all refunds complete while campai
     fixture.submissions.filter((row) => row.kind === "refund"),
   ).toHaveLength(1);
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toHaveCount(0);
   fixture.omitBackers([]);
-  await page.getByRole("button", { name: "Вернуть оставшиеся взносы" }).click();
+  await page
+    .getByRole("button", { name: "Refund remaining contributions" })
+    .click();
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   expect(fixture.projects.get(fixture.first.campaignAddress)?.refunded).toBe(
     300_000_000n,
@@ -202,32 +219,32 @@ test("pending project creation and chat resolve by read-only confirmation withou
   await fixture.attach(page);
   await page.goto("/create");
   await page
-    .getByLabel("Название проекта", { exact: true })
+    .getByLabel("Project title", { exact: true })
     .fill("Подтверждение без повтора");
   await page
-    .getByLabel("Описание", { exact: true })
+    .getByLabel("Description", { exact: true })
     .fill("Создание и сообщение подтверждаются без повторной отправки.");
-  await page.getByLabel(/Цель сбора/).fill("1");
+  await page.getByLabel(/Funding goal/).fill("1");
   await fixture.outcomes(page, ["pending"]);
   await page
-    .getByRole("button", { name: /Создать проект|Опубликовать проект/ })
+    .getByRole("button", { name: /Create project|Publish project/ })
     .last()
     .click();
   await expect(
-    page.getByText(/Транзакция отправлена, но подтверждение ещё не получено/),
+    page.getByText(
+      /The transaction was submitted but has not been confirmed yet/,
+    ),
   ).toBeVisible();
   expect(fixture.submissions).toHaveLength(1);
   const intendedCampaign = fixture.submissions[0].campaign;
   expect(fixture.projects.has(intendedCampaign)).toBe(false);
   await expect(
-    page
-      .getByRole("button", { name: /Создать проект|Опубликовать проект/ })
-      .last(),
+    page.getByRole("button", { name: /Create project|Publish project/ }).last(),
   ).toBeDisabled();
   await fixture.confirmPending();
   await fixture.confirmPending();
   await page
-    .getByRole("button", { name: "Проверить подтверждение", exact: true })
+    .getByRole("button", { name: "Check confirmation", exact: true })
     .click();
   await expect(page).toHaveURL(
     new RegExp("/projects/" + intendedCampaign + "$"),
@@ -239,32 +256,34 @@ test("pending project creation and chat resolve by read-only confirmation withou
     }),
   ).toBeVisible();
   expect(fixture.submissions).toHaveLength(1);
-  await page.getByRole("tab", { name: "Чат", exact: true }).click();
+  await page.getByRole("tab", { name: "Discussion", exact: true }).click();
   await page
-    .getByLabel("Ваше сообщение")
+    .getByLabel("Your message")
     .fill("Сообщение будет опубликовано ровно один раз");
   await fixture.outcomes(page, ["pending"]);
-  await page.getByRole("button", { name: "Опубликовать сообщение" }).click();
+  await page.getByRole("button", { name: "Post message" }).click();
   await expect(
-    page.getByText(/Транзакция отправлена, но подтверждение ещё не получено/),
+    page.getByText(
+      /The transaction was submitted but has not been confirmed yet/,
+    ),
   ).toBeVisible();
-  await expect(page.getByLabel("Ваше сообщение")).toHaveValue(
+  await expect(page.getByLabel("Your message")).toHaveValue(
     "Сообщение будет опубликовано ровно один раз",
   );
   await expect(
-    page.getByRole("button", { name: "Опубликовать сообщение" }),
+    page.getByRole("button", { name: "Post message" }),
   ).toBeDisabled();
   expect(fixture.projects.get(intendedCampaign)?.messages).toBe(0n);
   await fixture.confirmPending();
   await page
-    .getByRole("button", { name: "Проверить подтверждение", exact: true })
+    .getByRole("button", { name: "Check confirmation", exact: true })
     .click();
   await expect(
     page.getByText("Сообщение будет опубликовано ровно один раз", {
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.getByLabel("Ваше сообщение")).toHaveValue("");
+  await expect(page.getByLabel("Your message")).toHaveValue("");
   expect(fixture.projects.get(intendedCampaign)?.messages).toBe(1n);
   expect(fixture.submissions.map((row) => row.kind)).toEqual([
     "initialize",
@@ -281,13 +300,16 @@ test("creator closes and returns exact contributions to both sponsors", async ({
   await fixture.attach(page);
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await page
-    .getByRole("button", { name: "Закрыть проект и вернуть средства" })
+    .getByRole("button", { name: "Close project and refund funds" })
     .click();
-  await page.getByRole("button", { name: "Да, закрыть сбор" }).click();
+  await page.getByRole("button", { name: "Yes, close funding" }).click();
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   expect(fixture.balances.get(SPONSOR_A)).toBe(a + 100_000_000n);
   expect(fixture.balances.get(SPONSOR_B)).toBe(b + 200_000_000n);
@@ -305,7 +327,7 @@ test("creator closes and returns exact contributions to both sponsors", async ({
       .every((row) => row.actor === CREATOR && row.recipient !== CREATOR),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Поддержать проект", exact: true }),
+    page.getByRole("button", { name: "Support project", exact: true }),
   ).toHaveCount(0);
 });
 
@@ -317,21 +339,26 @@ test("partial refund interruption resumes only outstanding sponsors", async ({
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await fixture.outcomes(page, ["success", "success", "cancel"]);
   await page
-    .getByRole("button", { name: "Закрыть проект и вернуть средства" })
+    .getByRole("button", { name: "Close project and refund funds" })
     .click();
-  await page.getByRole("button", { name: "Да, закрыть сбор" }).click();
-  await expect(page.getByText(/Возврат остановлен/)).toBeVisible();
+  await page.getByRole("button", { name: "Yes, close funding" }).click();
+  await expect(page.getByText(/Refund processing stopped/)).toBeVisible();
   expect(
     fixture.projects.get(fixture.first.campaignAddress)?.refunded,
   ).toBeGreaterThan(0n);
   expect(
     fixture.projects.get(fixture.first.campaignAddress)?.refunded,
   ).toBeLessThan(300_000_000n);
-  await page.getByRole("button", { name: "Вернуть оставшиеся взносы" }).click();
+  await page
+    .getByRole("button", { name: "Refund remaining contributions" })
+    .click();
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   expect(fixture.projects.get(fixture.first.campaignAddress)?.refunded).toBe(
     300_000_000n,
@@ -348,11 +375,13 @@ test("sponsor claims own refund and never receives creator controls", async ({
   await fixture.attach(page, SPONSOR_A);
   await page.goto("/projects/" + fixture.first.campaignAddress);
   await expect(
-    page.getByRole("button", { name: "Закрыть проект и вернуть средства" }),
+    page.getByRole("button", { name: "Close project and refund funds" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Получить свой возврат" }).click();
+  await page.getByRole("button", { name: "Claim my refund" }).click();
   await expect(
-    page.getByText("Ваш взнос возвращён на ваш кошелёк.", { exact: true }),
+    page.getByText("Your contribution has been returned to your wallet.", {
+      exact: true,
+    }),
   ).toBeVisible();
   expect(fixture.submissions[0]).toMatchObject({
     kind: "refund",
@@ -361,7 +390,7 @@ test("sponsor claims own refund and never receives creator controls", async ({
     amount: "100000000",
   });
   await expect(
-    page.getByRole("button", { name: "Получить свой возврат" }),
+    page.getByRole("button", { name: "Claim my refund" }),
   ).toHaveCount(0);
 });
 
@@ -382,21 +411,21 @@ test("existing funded campaign refunds its recorded 3 SOL and preserves original
   await fixture.attach(page, SPONSOR_A);
   await page.goto("/projects/" + fixture.legacy.campaignAddress);
   await expect(
-    page.getByText("Ваш вклад: 2 SOL", { exact: true }),
+    page.getByText("Your contribution: 2 SOL", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Операции", exact: true }).click();
-  await expect(page.getByText("Взнос", { exact: true })).toHaveCount(2);
-  await page.getByRole("tab", { name: "Чат", exact: true }).click();
+  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await expect(page.getByText("Contribution", { exact: true })).toHaveCount(2);
+  await page.getByRole("tab", { name: "Discussion", exact: true }).click();
   await page
-    .getByLabel("Ваше сообщение")
+    .getByLabel("Your message")
     .fill("Мой старый взнос и его возврат видны участникам");
-  await page.getByRole("button", { name: "Опубликовать сообщение" }).click();
+  await page.getByRole("button", { name: "Post message" }).click();
   await expect(
     page.getByText("Мой старый взнос и его возврат видны участникам", {
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.getByLabel("Ваше сообщение")).toHaveValue("");
+  await expect(page.getByLabel("Your message")).toHaveValue("");
   await expect
     .poll(
       () =>
@@ -407,13 +436,16 @@ test("existing funded campaign refunds its recorded 3 SOL and preserves original
   const sponsorBeforeRefund = fixture.balances.get(SPONSOR_A)!;
   await fixture.switchAccount(page, CREATOR);
   await page
-    .getByRole("button", { name: "Закрыть проект и вернуть средства" })
+    .getByRole("button", { name: "Close project and refund funds" })
     .click();
-  await page.getByRole("button", { name: "Да, закрыть сбор" }).click();
+  await page.getByRole("button", { name: "Yes, close funding" }).click();
   await expect(
-    page.getByText("Все оставшиеся взносы возвращены спонсорам.", {
-      exact: true,
-    }),
+    page.getByText(
+      "All outstanding contributions have been refunded to sponsors.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   expect(fixture.legacyState.refunded).toBe(3_000_000_000n);
   expect(fixture.balances.get(SPONSOR_A)).toBe(
@@ -442,22 +474,22 @@ test("existing funded campaign refunds its recorded 3 SOL and preserves original
     "legacyRefund",
     "legacyRefund",
   ]);
-  await page.getByRole("tab", { name: "Операции", exact: true }).click();
-  await expect(page.getByText("Взнос", { exact: true })).toHaveCount(2);
-  await expect(page.getByText("Возврат спонсору", { exact: true })).toHaveCount(
+  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await expect(page.getByText("Contribution", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("Sponsor refund", { exact: true })).toHaveCount(
     2,
   );
-  await page.getByRole("tab", { name: "Чат", exact: true }).click();
+  await page.getByRole("tab", { name: "Discussion", exact: true }).click();
   await expect(
     page.getByText("Мой старый взнос и его возврат видны участникам", {
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.getByText(/Чат сохранён для просмотра/)).toBeVisible();
+  await expect(page.getByText(/The discussion remains readable/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Post message" })).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByRole("button", { name: "Опубликовать сообщение" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Поддержать проект", exact: true }),
+    page.getByRole("button", { name: "Support project", exact: true }),
   ).toHaveCount(0);
 });

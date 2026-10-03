@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, FlaskConical, Globe2 } from "lucide-react";
+import { ArrowUpRight, FlaskConical } from "lucide-react";
 import { Brand } from "@/components/ui";
 import { usePlatform } from "@/features/platform/platform-provider";
 import { WalletControl } from "@/features/platform/wallet-control";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { text, locale, setLocale } = usePlatform();
+  const { text } = usePlatform();
   return (
     <div className="of-app" translate="no">
       <a className="skip-link" href="#main-content">
@@ -55,19 +55,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="of-header-actions">
-            <label className="of-language-select">
-              <Globe2 size={15} aria-hidden="true" />
-              <select
-                aria-label={text("Язык сайта", "Site language")}
-                value={locale}
-                onChange={(event) =>
-                  setLocale(event.target.value === "en" ? "en" : "ru")
-                }
-              >
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
-              </select>
-            </label>
             <WalletControl />
           </div>
         </div>

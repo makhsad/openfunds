@@ -17,12 +17,12 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru" translate="no" className="notranslate">
+    <html lang="en" translate="no" className="notranslate">
       <body>
         <Suspense
           fallback={
             <main className="of-container of-page" role="status">
-              Загружаем OpenFunds…
+              Loading OpenFunds…
             </main>
           }
         >

@@ -1461,7 +1461,7 @@ function DetailActivity({
   data: DetailData;
   onMore: () => Promise<void>;
 }) {
-  const { text, locale } = usePlatform();
+  const { text } = usePlatform();
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const labels: Record<ProjectActivity["kind"], string> = {
@@ -1525,9 +1525,7 @@ function DetailActivity({
               </span>
               <small>
                 {item.blockTime
-                  ? new Date(item.blockTime * 1000).toLocaleString(
-                      locale === "ru" ? "ru-RU" : "en-US",
-                    )
+                  ? new Date(item.blockTime * 1000).toLocaleString("en-US")
                   : text("Время недоступно", "Time unavailable")}
               </small>
               <TransactionLink value={item.signature} />
@@ -1595,7 +1593,6 @@ function ProjectContent({ campaignAddress }: { campaignAddress: string }) {
   const platform = usePlatform();
   const {
     text,
-    locale,
     walletAddress,
     walletBalance,
     ledger,
@@ -2255,9 +2252,7 @@ function ProjectContent({ campaignAddress }: { campaignAddress: string }) {
                           <small>
                             {new Date(
                               Number(message.createdAt) * 1000,
-                            ).toLocaleString(
-                              locale === "ru" ? "ru-RU" : "en-US",
-                            )}
+                            ).toLocaleString("en-US")}
                           </small>
                         </article>
                       ))

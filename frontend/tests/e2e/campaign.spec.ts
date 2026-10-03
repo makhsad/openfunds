@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createPlatformFixture, TITLE } from "./platform-fixture";
 
-test("keyboard user reaches project and site language without browser translation", async ({
+test("keyboard user reaches the English project without browser translation", async ({
   page,
 }) => {
   const fixture = await createPlatformFixture();
@@ -9,16 +9,17 @@ test("keyboard user reaches project and site language without browser translatio
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/projects");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator(".of-language-select")).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: TITLE, exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("link", { name: "Перейти к содержимому" }),
+    page.getByRole("link", { name: "Skip to content" }),
   ).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
-  await page.getByLabel("Язык сайта").selectOption("en");
   await fixture.translate(page);
   await page.getByRole("link", { name: TITLE, exact: true }).click();
   await expect(

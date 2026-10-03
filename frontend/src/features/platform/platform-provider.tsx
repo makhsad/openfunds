@@ -23,10 +23,7 @@ import {
   type RememberedWallet,
 } from "@/lib/solana/wallet-registry";
 
-type Locale = "ru" | "en";
 interface PlatformContextValue {
-  locale: Locale;
-  setLocale(locale: Locale): void;
   text(ru: string, en: string): string;
   walletAddress: string | null;
   walletBalance: string | null;
@@ -47,7 +44,6 @@ interface PlatformContextValue {
 }
 
 const PlatformContext = createContext<PlatformContextValue | null>(null);
-const LOCALE_KEY = "openfunds-language-v1";
 const DISCONNECTED_KEY = "openfunds-wallet-disconnected-v1";
 
 function storageGet(key: string) {
@@ -66,7 +62,6 @@ function storageSet(key: string, value: string) {
 }
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
-  const [locale, updateLocale] = useState<Locale>("ru");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string | null>(null);
   const [hasPhantom, setHasPhantom] = useState<boolean | null>(null);
@@ -84,15 +79,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const operationLock = useRef(false);
   const connectionLock = useRef(false);
 
-  const text = useCallback(
-    (ru: string, en: string) => (locale === "ru" ? ru : en),
-    [locale],
-  );
-  const setLocale = useCallback((value: Locale) => {
-    updateLocale(value);
-    storageSet(LOCALE_KEY, value);
-    document.documentElement.lang = value;
-  }, []);
+  const text = useCallback((_ru: string, en: string) => en, []);
 
   const refreshWallet = useCallback(async () => {
     const gateway = walletRef.current;
@@ -123,11 +110,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const savedLocale = storageGet(LOCALE_KEY) === "en" ? "en" : "ru";
-    // Browser-only persisted preferences must load after hydration.
+    // Browser-only remembered wallets load after hydration.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    updateLocale(savedLocale);
-    document.documentElement.lang = savedLocale;
     setKnownWallets(readRememberedWallets(storageGet(WALLET_STORAGE_KEY)));
     const provider = getPhantomProvider();
     const rpc = createDevnetRpcTransport();
@@ -295,8 +279,6 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   return (
     <PlatformContext.Provider
       value={{
-        locale,
-        setLocale,
         text,
         walletAddress,
         walletBalance,
@@ -333,7 +315,7 @@ export function usePlatform() {
   return value;
 }
 
-/** Native language updates preserve a stable React-owned text element. */
+/** Keep interface text inside a stable React-owned element. */
 export function Text({ ru, en }: { ru: string; en: string }) {
   const { text } = usePlatform();
   return <span translate="no">{text(ru, en)}</span>;

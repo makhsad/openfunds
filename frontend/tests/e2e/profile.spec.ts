@@ -8,20 +8,24 @@ test("public sponsor profile shows that participant's shared contribution withou
   await fixture.attach(page, null);
   await page.goto("/profile/" + SPONSOR_A);
   await expect(
-    page.getByRole("heading", { name: "Профиль участника", exact: true }),
+    page.getByRole("heading", { name: "Participant profile", exact: true }),
   ).toBeVisible();
   const project = page
     .getByRole("article")
     .filter({ has: page.getByRole("link", { name: TITLE, exact: true }) });
   await expect(
-    project.getByText("Взнос участника", { exact: true }),
+    project.getByText("Participant contribution", { exact: true }),
   ).toBeVisible();
   await expect(
     project
       .locator(".pf-card-personal div")
-      .filter({ has: page.getByText("Взнос участника", { exact: true }) })
+      .filter({
+        has: page.getByText("Participant contribution", { exact: true }),
+      })
       .getByText("0.1 SOL", { exact: true }),
   ).toBeVisible();
-  await expect(project.getByText("Ваш взнос", { exact: true })).toHaveCount(0);
+  await expect(
+    project.getByText("Your contribution", { exact: true }),
+  ).toHaveCount(0);
   expect(fixture.submissions).toEqual([]);
 });

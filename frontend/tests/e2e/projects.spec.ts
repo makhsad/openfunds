@@ -8,29 +8,39 @@ import {
   TITLE,
 } from "./platform-fixture";
 
-test("one shared site preserves old links and native language across reload", async ({
+test("English-only site ignores a saved Russian preference across reload and navigation", async ({
   page,
 }) => {
   const fixture = await createPlatformFixture();
+  await page.addInitScript(() => {
+    localStorage.setItem("openfunds-language-v1", "ru");
+  });
   await fixture.attach(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/?mode=demo");
-  await expect(
-    page.getByRole("heading", { name: "Большие идеи." }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: TITLE })).toBeVisible();
-  await expect(page.getByText("Explore demo", { exact: true })).toHaveCount(0);
-  await page.getByLabel("Язык сайта").selectOption("en");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { name: "Big ideas." })).toBeVisible();
+  await expect(page.getByRole("link", { name: TITLE })).toBeVisible();
+  await expect(page.getByText("Explore demo", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".of-language-select")).toHaveCount(0);
+  await expect(page.getByLabel(/Site language|Язык сайта/)).toHaveCount(0);
   await fixture.translate(page);
   await fixture.switchAccount(page, SPONSOR_A);
   await page.reload();
-  await expect(page.getByLabel("Site language")).toHaveValue("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator(".of-language-select")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Big ideas." })).toBeVisible();
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "My dashboard" }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await page.goto("/demo");
   await expect(page).toHaveURL(/\/projects$/);
+  await expect(
+    page.getByRole("heading", { name: "Community projects" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: TITLE, exact: true }),
   ).toBeVisible();
@@ -39,6 +49,7 @@ test("one shared site preserves old links and native language across reload", as
     new RegExp("/projects/" + fixture.legacy.campaignAddress + "$"),
   );
   await expect(page.getByText("3 SOL", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
   expect(errors).toEqual([]);
 });
 
@@ -50,15 +61,15 @@ test("creator publishes named project and sponsor sees same shared metadata", as
   await fixture.attach(page);
   await page.goto("/create");
   await page
-    .getByLabel("Название проекта", { exact: true })
+    .getByLabel("Project title", { exact: true })
     .fill("Проект для демонстрации");
   await page
-    .getByLabel("Описание", { exact: true })
+    .getByLabel("Description", { exact: true })
     .fill("Создаём общий проект для двух устройств.");
-  await page.getByLabel(/Цель сбора/).fill("1");
+  await page.getByLabel(/Funding goal/).fill("1");
   await page
     .getByRole("button", {
-      name: /Создать проект|Опубликовать проект/,
+      name: /Create project|Publish project/,
       exact: false,
     })
     .last()
@@ -97,42 +108,42 @@ test("wallet menu remembers three accounts but dashboard follows active Phantom 
   await fixture.attach(page);
   await page.goto("/dashboard");
   await expect(
-    page.getByRole("heading", { name: /Мой кабинет/ }),
+    page.getByRole("heading", { name: /My dashboard/ }),
   ).toBeVisible();
   await fixture.switchAccount(page, SPONSOR_A);
   await page
-    .getByRole("tab", { name: "Поддержанные проекты", exact: true })
+    .getByRole("tab", { name: "Supported projects", exact: true })
     .click();
   await expect(
     page
       .locator(".pf-card-personal div")
-      .filter({ has: page.getByText("Ваш взнос", { exact: true }) })
+      .filter({ has: page.getByText("Your contribution", { exact: true }) })
       .getByText("0.1 SOL", { exact: true }),
   ).toBeVisible();
   await fixture.switchAccount(page, SPONSOR_B);
   await page
-    .getByRole("tab", { name: "Поддержанные проекты", exact: true })
+    .getByRole("tab", { name: "Supported projects", exact: true })
     .click();
   await expect(
     page
       .locator(".pf-card-personal div")
-      .filter({ has: page.getByText("Ваш взнос", { exact: true }) })
+      .filter({ has: page.getByText("Your contribution", { exact: true }) })
       .getByText("0.2 SOL", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Кошельки", exact: true }).click();
+  await page.getByRole("button", { name: "Wallets", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(
-    dialog.getByRole("heading", { name: "Мои кошельки" }),
+    dialog.getByRole("heading", { name: "My wallets" }),
   ).toBeVisible();
-  await expect(dialog.getByLabel(/Название кошелька/)).toHaveCount(3);
+  await expect(dialog.getByLabel(/Wallet label/)).toHaveCount(3);
   await expect(dialog.getByText(SPONSOR_B, { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Закрыть окно кошельков" }).click();
+  await dialog.getByRole("button", { name: "Close wallets" }).click();
   await fixture.switchAccount(page, CREATOR);
   await expect(
     page.getByRole("link", { name: TITLE, exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Ваши средства в проекте", { exact: true }),
+    page.getByText("Your funds in the project", { exact: true }),
   ).toHaveCount(0);
 });
 
@@ -148,7 +159,7 @@ test("public project and profile remain readable without Phantom, no horizontal 
   await expect(
     page
       .locator("main")
-      .getByRole("link", { name: "Установить Phantom", exact: true }),
+      .getByRole("link", { name: "Install Phantom", exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -165,7 +176,7 @@ test("public project and profile remain readable without Phantom, no horizontal 
   });
   await page.goto("/profile/" + CREATOR);
   await expect(
-    page.getByRole("heading", { name: "Профиль участника", exact: true }),
+    page.getByRole("heading", { name: "Participant profile", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: TITLE, exact: true }),
@@ -179,12 +190,10 @@ test("missing program upgrade is visible and prevents false project creation", a
   await fixture.attach(page);
   await page.goto("/create");
   await expect(
-    page.getByText(/Новая версия программы ещё не активирована/),
+    page.getByText(/The new program version is not active/),
   ).toBeVisible();
   await expect(
-    page
-      .getByRole("button", { name: /Создать проект|Опубликовать проект/ })
-      .last(),
+    page.getByRole("button", { name: /Create project|Publish project/ }).last(),
   ).toBeDisabled();
   expect(fixture.submissions).toEqual([]);
 });
